@@ -28,25 +28,7 @@ const HEX_SPRITES: [HexSprite; 0x10] = [
     [0xF0, 0x80, 0xF0, 0x80, 0x80],
 ];
 
-pub struct Address {
-    value: u16,
-}
-
-impl Address {
-    pub const PROGRAM_START: Address = Address { value: 0x200 };
-
-    pub fn new(value: u16) -> Address {
-        if value as usize > ADDRESS_MAX {
-            panic!("Cannot create address over {:#05X}", ADDRESS_MAX);
-        }
-
-        Address { value }
-    }
-
-    pub fn value(&self) -> u16 {
-        self.value
-    }
-}
+pub type Address = u16;
 
 pub struct RAM {
     value: [u8; ADDRESS_MAX],
@@ -78,7 +60,7 @@ impl RAM {
             panic!("Invalid sprite number {}", sprite_number);
         }
 
-        Address::new(sprite_number as u16 * SPRITE_SIZE as u16)
+        sprite_number as Address * SPRITE_SIZE as Address
     }
 }
 

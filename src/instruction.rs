@@ -7,6 +7,12 @@ pub enum Instruction {
     AddXNN { register: u8, value: u8 },
     // 8XY0
     StoreXY { target: u8, source: u8 },
+    // 8XY1
+    OrXY { target: u8, source: u8 },
+    // 8XY2
+    AndXY { target: u8, source: u8 },
+    // 8XY3
+    XorXY { target: u8, source: u8 },
     // 8XY4
     AddXY { target: u8, source: u8 },
     // 8XY5

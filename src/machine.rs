@@ -1,10 +1,17 @@
 use crate::instruction::Instruction;
+use crate::machine::FlagSideEffect::SET;
 use crate::memory;
 use crate::register;
 
 pub struct Machine {
     pub ram: memory::RAM,
     pub registers: register::Registers,
+}
+
+// TODO where to put this
+enum FlagSideEffect {
+    NONE,
+    SET(bool),
 }
 
 impl Machine {
@@ -30,31 +37,22 @@ impl Machine {
                 self.registers.set_register(*target, source_value);
             }
             Instruction::AddXY { target, source } => {
-                let source_value = self.registers.get_register(*source);
-                let target_value = self.registers.get_register(*target);
-
-                let (value, carry) = source_value.overflowing_add(target_value);
-
-                self.registers.set_register(*target, value);
-                self.registers.set_flag(if carry { 1 } else { 0 });
+                self.flagging_op(target, source, |tv, sv| {
+                    let (value, carry) = tv.overflowing_add(sv);
+                    (value, FlagSideEffect::SET(carry))
+                });
             }
             Instruction::SubXY { target, source } => {
-                let source_value = self.registers.get_register(*source);
-                let target_value = self.registers.get_register(*target);
-
-                let (value, borrow) = target_value.overflowing_sub(source_value);
-
-                self.registers.set_register(*target, value);
-                self.registers.set_flag(if borrow { 0 } else { 1 });
+                self.flagging_op(target, source, |tv, sv| {
+                    let (value, borrow) = tv.overflowing_sub(sv);
+                    (value, FlagSideEffect::SET(!borrow))
+                });
             }
             Instruction::SUBXYReverse { target, source } => {
-                let source_value = self.registers.get_register(*source);
-                let target_value = self.registers.get_register(*target);
-
-                let (value, borrow) = source_value.overflowing_sub(target_value);
-
-                self.registers.set_register(*target, value);
-                self.registers.set_flag(if borrow { 0 } else { 1 });
+                self.flagging_op(target, source, |tv, sv| {
+                    let (value, borrow) = sv.overflowing_sub(tv);
+                    (value, FlagSideEffect::SET(!borrow))
+                });
             }
             _ => panic!("Unsupported"),
         }
@@ -67,6 +65,29 @@ impl Machine {
         instructions
             .into_iter()
             .for_each(|instruction| self.step(instruction))
+    }
+
+    fn op<T>(&mut self, target: &u8, source: &u8, op: T)
+    where
+        T: FnOnce(u8, u8) -> u8,
+    {
+        self.flagging_op(target, source, |t, s| (op(t, s), FlagSideEffect::NONE))
+    }
+
+    fn flagging_op<T>(&mut self, target: &u8, source: &u8, op: T)
+    where
+        T: FnOnce(u8, u8) -> (u8, FlagSideEffect),
+    {
+        let source_value = self.registers.get_register(*source);
+        let target_value = self.registers.get_register(*target);
+
+        let (value, flag_effect) = op(target_value, source_value);
+
+        self.registers.set_register(*target, value);
+
+        if let FlagSideEffect::SET(flag) = flag_effect {
+            self.registers.set_flag(if flag { 1 } else { 0 });
+        }
     }
 }
 

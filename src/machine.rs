@@ -29,6 +29,10 @@ impl Machine {
 
                 // TODO increment the program count
             }
+            Instruction::StoreXY { target, source } => {
+                let source_value = self.registers.get_register(*source);
+                self.registers.set_register(*target, source_value);
+            }
             _ => panic!("Unsupported"),
         }
     }
@@ -73,6 +77,27 @@ mod tests {
 
         assert_eq!(
             [0, 0, 0, 0, 0, 23, 0, 77, 0, 0, 0, 0, 0, 0, 0, 123],
+            machine.registers.v
+        );
+    }
+
+    #[test]
+    fn store_xy() {
+        let mut machine = Machine::new();
+
+        machine.step_many([
+            &StoreXNN {
+                register: 0x5,
+                value: 90,
+            },
+            &StoreXY {
+                target: 0xE,
+                source: 0x5,
+            },
+        ]);
+
+        assert_eq!(
+            [0, 0, 0, 0, 0, 90, 0, 0, 0, 0, 0, 0, 0, 0, 90, 0],
             machine.registers.v
         );
     }

@@ -21,13 +21,9 @@ impl Machine {
                 self.registers.set_register(*register, *value);
             }
             Instruction::AddXNN { register, value } => {
-                let (value, carry) = self.registers.v[*register as usize].overflowing_add(*value);
+                let (value, _) = self.registers.v[*register as usize].overflowing_add(*value);
 
                 self.registers.set_register(*register, value);
-                // TODO does this modify the carry, or only register-to-register addition?
-                self.registers.set_flag(if carry { 1 } else { 0 })
-
-                // TODO increment the program count
             }
             Instruction::StoreXY { target, source } => {
                 let source_value = self.registers.get_register(*source);
@@ -106,6 +102,10 @@ mod tests {
     fn add_xnn() {
         let mut machine = Machine::new();
 
+        // Numeric add should not affect the flag, so place a value there to ensure it isn't hurt
+        let expected_flag = 0x8F;
+        machine.registers.set_flag(expected_flag);
+
         let register = 0x5;
 
         assert_eq!(0, machine.registers.get_register(register));
@@ -116,7 +116,7 @@ mod tests {
             value: 106,
         });
         assert_eq!(106, machine.registers.get_register(register));
-        assert_eq!(0, machine.registers.get_flag());
+        assert_eq!(expected_flag, machine.registers.get_flag());
 
         // A second add just below the limit should also not overflow
         machine.step(&Instruction::AddXNN {
@@ -124,16 +124,16 @@ mod tests {
             value: 149,
         });
         assert_eq!(255, machine.registers.get_register(register));
-        assert_eq!(0, machine.registers.get_flag());
+        assert_eq!(expected_flag, machine.registers.get_flag());
 
         // Add one more and it should overflow
         machine.step(&AddXNN { register, value: 1 });
         assert_eq!(0, machine.registers.get_register(register));
-        assert_eq!(1, machine.registers.get_flag());
+        assert_eq!(expected_flag, machine.registers.get_flag());
 
         // Add one last time and the flag should reset
         machine.step(&AddXNN { register, value: 3 });
         assert_eq!(3, machine.registers.get_register(register));
-        assert_eq!(0, machine.registers.get_flag());
+        assert_eq!(expected_flag, machine.registers.get_flag());
     }
 }

@@ -1,5 +1,4 @@
 use crate::instruction::Instruction;
-use crate::machine::FlagSideEffect::SET;
 use crate::memory;
 use crate::register;
 
@@ -36,6 +35,9 @@ impl Machine {
                 let source_value = self.registers.get_register(*source);
                 self.registers.set_register(*target, source_value);
             }
+            Instruction::OrXY { target, source } => self.op(target, source, |tv, sv| tv | sv),
+            Instruction::AndXY { target, source } => self.op(target, source, |tv, sv| tv & sv),
+            Instruction::XorXY { target, source } => self.op(target, source, |tv, sv| tv ^ sv),
             Instruction::AddXY { target, source } => {
                 self.flagging_op(target, source, |tv, sv| {
                     let (value, carry) = tv.overflowing_add(sv);
@@ -54,7 +56,6 @@ impl Machine {
                     (value, FlagSideEffect::SET(!borrow))
                 });
             }
-            _ => panic!("Unsupported"),
         }
     }
 
@@ -293,5 +294,38 @@ mod tests {
 
         assert_eq!([0xE2, 0x2D], machine.registers.v[0xC..=0xD]);
         assert_eq!(0x0, machine.registers.get_flag());
+    }
+
+    #[test]
+    fn bitwise() {
+        let mut machine = Machine::new();
+
+        machine.registers.set_flag(0xBB);
+
+        machine.registers.set_register(1, 0x2D);
+        machine.registers.set_register(2, 0x4B);
+        machine.step(&OrXY {
+            target: 0x1,
+            source: 0x2,
+        });
+        assert_eq!([0x6F, 0x4B], machine.registers.v[1..3]);
+
+        machine.registers.set_register(3, 0x2D);
+        machine.registers.set_register(4, 0x4B);
+        machine.step(&AndXY {
+            target: 0x3,
+            source: 0x4,
+        });
+        assert_eq!([0x09, 0x4B], machine.registers.v[3..5]);
+
+        machine.registers.set_register(5, 0x2D);
+        machine.registers.set_register(6, 0x4B);
+        machine.step(&XorXY {
+            target: 0x5,
+            source: 0x6,
+        });
+        assert_eq!([0x66, 0x4B], machine.registers.v[5..7]);
+
+        assert_eq!(0xBB, machine.registers.get_flag());
     }
 }

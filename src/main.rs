@@ -1,7 +1,7 @@
-use crust_8::memory::RAM;
+use crust_8::memory;
 
 fn main() {
-    let ram = RAM::new();
+    let ram = memory::RAM::new();
 
     println!("Ram: {:?}", ram);
 }

@@ -38,6 +38,24 @@ impl Machine {
                 self.registers.set_register(*target, value);
                 self.registers.set_flag(if carry { 1 } else { 0 });
             }
+            Instruction::SubXY { target, source } => {
+                let source_value = self.registers.get_register(*source);
+                let target_value = self.registers.get_register(*target);
+
+                let (value, borrow) = target_value.overflowing_sub(source_value);
+
+                self.registers.set_register(*target, value);
+                self.registers.set_flag(if borrow { 0 } else { 1 });
+            }
+            Instruction::SUBXYReverse { target, source } => {
+                let source_value = self.registers.get_register(*source);
+                let target_value = self.registers.get_register(*target);
+
+                let (value, borrow) = source_value.overflowing_sub(target_value);
+
+                self.registers.set_register(*target, value);
+                self.registers.set_flag(if borrow { 0 } else { 1 });
+            }
             _ => panic!("Unsupported"),
         }
     }
@@ -187,5 +205,72 @@ mod tests {
 
         assert_eq!([16, 45], machine.registers.v[0..2]);
         assert_eq!(0x1, machine.registers.get_flag());
+    }
+
+    #[test]
+    fn sub() {
+        let mut machine = Machine::new();
+
+        machine.registers.set_register(0x0, 17);
+        machine.registers.set_register(0x1, 30);
+        machine.registers.set_flag(0xDD);
+
+        // Subtraction without wrapping sets the flag to 1
+        machine.step(&SubXY {
+            target: 0x1,
+            source: 0x0,
+        });
+        assert_eq!([17, 13], machine.registers.v[0..2]);
+        assert_eq!(0x1, machine.registers.get_flag());
+
+        // Subtraction with wrapping sets the flag to 0
+        machine.step(&SubXY {
+            target: 0x1,
+            source: 0x0,
+        });
+        assert_eq!([17, 252], machine.registers.v[0..2]);
+        assert_eq!(0x0, machine.registers.get_flag());
+    }
+
+    #[test]
+    fn sub_reverse() {
+        let mut machine = Machine::new();
+
+        // No borrow
+        machine.step_many([
+            &StoreXNN {
+                register: 0xA,
+                value: 0x2D,
+            },
+            &StoreXNN {
+                register: 0xB,
+                value: 0x4B,
+            },
+            &SUBXYReverse {
+                target: 0xA,
+                source: 0xB,
+            },
+        ]);
+        assert_eq!([0x1E, 0x4B], machine.registers.v[0xA..=0xB]);
+        assert_eq!(0x1, machine.registers.get_flag());
+
+        // With carry
+        machine.step_many([
+            &StoreXNN {
+                register: 0xC,
+                value: 0x4B,
+            },
+            &StoreXNN {
+                register: 0xD,
+                value: 0x2D,
+            },
+            &SUBXYReverse {
+                target: 0xC,
+                source: 0xD,
+            },
+        ]);
+
+        assert_eq!([0xE2, 0x2D], machine.registers.v[0xC..=0xD]);
+        assert_eq!(0x0, machine.registers.get_flag());
     }
 }

@@ -79,4 +79,8 @@ mod tests {
         assert_eq!(0x3C, u4_to_u8(0x3, 0xC));
         assert_eq!(0xBD, u4_to_u8(0xAB, 0xCD));
     }
+
+    // TODO test cases:
+    // - What should happen with carrying operations that are themselves operating on the carry?
+    //   For example, subtracting register 0x1 from 0xF when 0x1 is larger - what should 0xF be?
 }

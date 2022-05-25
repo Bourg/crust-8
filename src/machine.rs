@@ -29,6 +29,15 @@ impl Machine {
                 let source_value = self.registers.get_register(*source);
                 self.registers.set_register(*target, source_value);
             }
+            Instruction::AddXY { target, source } => {
+                let source_value = self.registers.get_register(*source);
+                let target_value = self.registers.get_register(*target);
+
+                let (value, carry) = source_value.overflowing_add(target_value);
+
+                self.registers.set_register(*target, value);
+                self.registers.set_flag(if carry { 1 } else { 0 });
+            }
             _ => panic!("Unsupported"),
         }
     }
@@ -135,5 +144,48 @@ mod tests {
         machine.step(&AddXNN { register, value: 3 });
         assert_eq!(3, machine.registers.get_register(register));
         assert_eq!(expected_flag, machine.registers.get_flag());
+    }
+
+    #[test]
+    fn add_xy() {
+        let mut machine = Machine::new();
+
+        // Set a flag that should be clobbered by non-overflowing flag set
+        machine.registers.set_flag(0xEE);
+
+        // Add two numbers
+        machine.step_many([
+            &StoreXNN {
+                register: 0x0,
+                value: 23,
+            },
+            &StoreXNN {
+                register: 0x1,
+                value: 45,
+            },
+            &AddXY {
+                target: 0x0,
+                source: 0x1,
+            },
+        ]);
+
+        // The registers should have been set and the flag set to 0
+        assert_eq!([68, 45], machine.registers.v[0..2]);
+        assert_eq!(0x0, machine.registers.get_flag());
+
+        // Make a few more additions and overflow will occur
+        machine.step_many([
+            &AddXY {
+                target: 0x0,
+                source: 0x0,
+            },
+            &AddXY {
+                target: 0x0,
+                source: 0x0,
+            },
+        ]);
+
+        assert_eq!([16, 45], machine.registers.v[0..2]);
+        assert_eq!(0x1, machine.registers.get_flag());
     }
 }

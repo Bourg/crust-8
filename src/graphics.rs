@@ -1,4 +1,7 @@
+use std::error;
 use std::fmt;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 pub const WIDTH_PX: usize = 64;
 pub const HEIGHT_PX: usize = 32;
@@ -80,6 +83,34 @@ impl EmulatorGraphics for HeadlessGraphics {
         }
 
         flipped_pixel
+    }
+}
+
+pub struct PistonGraphics {
+    buffer: Arc<Mutex<HeadlessGraphics>>,
+}
+
+impl PistonGraphics {
+    pub fn new() -> PistonGraphics {
+        PistonGraphics {
+            buffer: Arc::new(Mutex::new(HeadlessGraphics::new())),
+        }
+    }
+
+    pub fn open_window(&self) -> Result<(), Box<dyn error::Error>> {
+        let mut window: piston_window::PistonWindow =
+            piston::WindowSettings::new("crust8", [640, 320]).build()?;
+
+        while let Some(e) = window.next() {
+            window.draw_2d(&e, |c, g, _| {
+                graphics::clear([1.0, 1.0, 1.0, 1.0], g);
+                graphics::rectangle([0.0, 0.0, 0.0, 1.0],
+                                    [0.0, 0.0, 10.0, 10.0], // rectangle
+                                    c.transform, g);
+            });
+        };
+
+        Ok(())
     }
 }
 

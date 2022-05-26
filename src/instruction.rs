@@ -1,3 +1,4 @@
+use crate::memory;
 use Instruction::*;
 
 pub enum Instruction {
@@ -24,6 +25,8 @@ pub enum Instruction {
     SUBXYReverse { target: u8, source: u8 },
     // 8XYE
     ShlXY { target: u8, source: u8 },
+    // Annn
+    StoreNNN { value: memory::Address },
 }
 
 impl Instruction {

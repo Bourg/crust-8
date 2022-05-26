@@ -82,6 +82,9 @@ impl<'a> Machine<'a> {
                 };
                 (sv << 1, FlagSideEffect::SET(sv & 0x80 != 0))
             }),
+            Instruction::StoreNNN { value } => {
+                self.registers.i = *value;
+            }
         }
     }
 
@@ -396,5 +399,17 @@ mod tests {
             assert_eq!(source_value, machine.registers.get_register(source));
             assert_eq!(expected_flag, machine.registers.get_flag());
         }
+    }
+
+    #[test]
+    fn store_nnn() {
+        let mut machine = Machine::new();
+
+        assert_eq!(0x0, machine.registers.i);
+
+        machine.step(&StoreNNN { value: 0x4090 });
+
+        assert_eq!([0u8; 16], machine.registers.v);
+        assert_eq!(0x4090, machine.registers.i)
     }
 }

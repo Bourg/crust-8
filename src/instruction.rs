@@ -25,12 +25,14 @@ pub enum Instruction {
     SUBXYReverse { target: u8, source: u8 },
     // 8XYE
     ShlXY { target: u8, source: u8 },
-    // Annn
+    // ANNN
     StoreNNN { value: memory::Address },
 }
 
+type InstructionBytes = [u8; 2];
+
 impl Instruction {
-    pub fn to_bytes(&self) -> [u8; 2] {
+    pub fn to_bytes(&self) -> InstructionBytes {
         match self {
             StoreXNN {
                 register,
@@ -44,7 +46,15 @@ impl Instruction {
                 target: target_register,
                 source: source_register,
             } => [u4_to_u8(8, *target_register), u4_to_u8(*source_register, 0)],
-            _ => panic!("Not supported"), // Do we even need to_bytes?
+            OrXY { target, source } => from_u4s(8, *target, *source, 1),
+            AndXY { target, source } => from_u4s(8, *target, *source, 2),
+            XorXY { target, source } => from_u4s(8, *target, *source, 3),
+            AddXY { target, source } => from_u4s(8, *target, *source, 4),
+            SubXY { target, source } => from_u4s(8, *target, *source, 5),
+            ShrXY { target, source } => from_u4s(8, *target, *source, 6),
+            SUBXYReverse { target, source } => from_u4s(8, *target, *source, 7),
+            ShlXY { target, source } => from_u4s(8, *target, *source, 0xE),
+            StoreNNN { value } => from_u16(0x8000 + value & 0xFFF),
         }
     }
 
@@ -53,6 +63,14 @@ impl Instruction {
 
         ((bytes[0] as u16) << 8) + bytes[1] as u16
     }
+}
+
+fn from_u4s(a: u8, b: u8, c: u8, d: u8) -> InstructionBytes {
+    [u4_to_u8(a, b), u4_to_u8(c, d)]
+}
+
+fn from_u16(value: u16) -> InstructionBytes {
+    [(value >> 8) as u8, (value & 0xFF) as u8]
 }
 
 fn u4_to_u8(most_significant: u8, least_significant: u8) -> u8 {
@@ -68,22 +86,91 @@ mod tests {
 
     #[test]
     fn test_to_bytes() {
-        assert_eq!(
-            0x6ABC,
-            StoreXNN {
-                register: 0xA,
-                value: 0xBC,
-            }
-            .to_u16()
-        );
-        assert_eq!(
-            0x8370,
-            StoreXY {
-                target: 3,
-                source: 7,
-            }
-            .to_u16()
-        )
+        let cases = [
+            (
+                0x6ABC,
+                StoreXNN {
+                    register: 0xA,
+                    value: 0xBC,
+                },
+            ),
+            (
+                0x7ABC,
+                AddXNN {
+                    register: 0xA,
+                    value: 0xBC,
+                },
+            ),
+            (
+                0x8AB0,
+                StoreXY {
+                    target: 0xA,
+                    source: 0xB,
+                },
+            ),
+            (
+                0x8AB1,
+                OrXY {
+                    target: 0xA,
+                    source: 0xB,
+                },
+            ),
+            (
+                0x8AB2,
+                AndXY {
+                    target: 0xA,
+                    source: 0xB,
+                },
+            ),
+            (
+                0x8AB3,
+                XorXY {
+                    target: 0xA,
+                    source: 0xB,
+                },
+            ),
+            (
+                0x8AB4,
+                AddXY {
+                    target: 0xA,
+                    source: 0xB,
+                },
+            ),
+            (
+                0x8AB5,
+                SubXY {
+                    target: 0xA,
+                    source: 0xB,
+                },
+            ),
+            (
+                0x8AB6,
+                ShrXY {
+                    target: 0xA,
+                    source: 0xB,
+                },
+            ),
+            (
+                0x8AB7,
+                SUBXYReverse {
+                    target: 0xA,
+                    source: 0xB,
+                },
+            ),
+            (
+                0x8ABE,
+                ShlXY {
+                    target: 0xA,
+                    source: 0xB,
+                },
+            ),
+        ];
+
+        for (expected, input) in cases {
+            let actual = input.to_u16();
+
+            assert_eq!(expected, actual);
+        }
     }
 
     #[test]
@@ -91,6 +178,20 @@ mod tests {
         assert_eq!(0, u4_to_u8(0, 0));
         assert_eq!(0x3C, u4_to_u8(0x3, 0xC));
         assert_eq!(0xBD, u4_to_u8(0xAB, 0xCD));
+    }
+
+    #[test]
+    fn test_u4s() {
+        assert_eq!([0, 0], from_u4s(0xF0, 0xF0, 0xF0, 0xF0));
+        assert_eq!([0xAB, 0xCD], from_u4s(0xA, 0xB, 0xC, 0xD));
+        assert_eq!([0xAB, 0xCD], from_u4s(0xFA, 0xFB, 0xFC, 0xFD));
+    }
+
+    #[test]
+    fn test_from_u16() {
+        assert_eq!([0, 0], from_u16(0));
+        assert_eq!([0xAB, 0xCD], from_u16(0xABCD));
+        assert_eq!([0, 0], from_u16(0));
     }
 
     // TODO test cases:

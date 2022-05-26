@@ -1,10 +1,11 @@
 use crate::instruction::Instruction;
-use crate::memory;
 use crate::register;
+use crate::{memory, settings};
 
-pub struct Machine {
+pub struct Machine<'a> {
     pub ram: memory::RAM,
     pub registers: register::Registers,
+    pub settings: &'a settings::Settings,
 }
 
 // TODO where to put this
@@ -13,15 +14,24 @@ enum FlagSideEffect {
     SET(bool),
 }
 
-impl Machine {
-    pub fn new() -> Machine {
+impl<'a> Machine<'a> {
+    pub fn new() -> Machine<'a> {
+        Machine::new_with_settings(&settings::Settings {
+            bit_shift_mode: settings::BitShiftMode::OneRegister,
+        })
+    }
+
+    pub fn new_with_settings(settings: &settings::Settings) -> Machine {
         Machine {
             ram: memory::RAM::new(),
             registers: register::Registers::new(),
+            settings,
         }
     }
 
     pub fn step(&mut self, instruction: &Instruction) {
+        let bit_shift_mode = self.settings.bit_shift_mode;
+
         match instruction {
             Instruction::StoreXNN { register, value } => {
                 self.registers.set_register(*register, *value);
@@ -50,7 +60,12 @@ impl Machine {
                     (value, FlagSideEffect::SET(!borrow))
                 });
             }
-            Instruction::ShrXY { target, source } => self.flagging_op(target, source, |_, sv| {
+            Instruction::ShrXY { target, source } => self.flagging_op(target, source, |tv, sv| {
+                let sv = if let settings::BitShiftMode::OneRegister = bit_shift_mode {
+                    tv
+                } else {
+                    sv
+                };
                 (sv >> 1, FlagSideEffect::SET(sv % 2 == 1))
             }),
             Instruction::SUBXYReverse { target, source } => {
@@ -59,15 +74,20 @@ impl Machine {
                     (value, FlagSideEffect::SET(!borrow))
                 });
             }
-            Instruction::ShlXY { target, source } => self.flagging_op(target, source, |_, sv| {
+            Instruction::ShlXY { target, source } => self.flagging_op(target, source, |tv, sv| {
+                let sv = if let settings::BitShiftMode::OneRegister = bit_shift_mode {
+                    tv
+                } else {
+                    sv
+                };
                 (sv << 1, FlagSideEffect::SET(sv & 0x80 != 0))
             }),
         }
     }
 
-    pub fn step_many<'a, T>(&mut self, instructions: T)
+    pub fn step_many<'b, T>(&mut self, instructions: T)
     where
-        T: IntoIterator<Item = &'a Instruction>,
+        T: IntoIterator<Item = &'b Instruction>,
     {
         instructions
             .into_iter()
@@ -102,6 +122,7 @@ impl Machine {
 mod tests {
     use super::*;
     use crate::instruction::Instruction::*;
+    use crate::settings::BitShiftMode;
 
     #[test]
     fn store_xnn() {
@@ -337,28 +358,42 @@ mod tests {
 
     #[test]
     fn bit_shifts() {
-        let mut machine = Machine::new();
-
         let target = 0xE;
         let source = 0xD;
+
+        let one_register_settings = &settings::Settings {
+            bit_shift_mode: BitShiftMode::OneRegister,
+        };
+        let two_register_settings = &settings::Settings {
+            bit_shift_mode: BitShiftMode::TwoRegister,
+        };
+
         let shr = &ShrXY { target, source };
         let shl = &ShlXY { target, source };
 
         let cases = [
-            (shr, 0x2C, 0x16, 0x00),
-            (shr, 0x2D, 0x16, 0x01),
-            (shl, 0x2D, 0x5A, 0x00),
-            (shl, 0xAD, 0x5A, 0x01),
+            (one_register_settings, shr, 0x2C, 0xFF, 0x16, 0x00),
+            (one_register_settings, shr, 0x2D, 0xFF, 0x16, 0x01),
+            (one_register_settings, shl, 0x2D, 0xFF, 0x5A, 0x00),
+            (one_register_settings, shl, 0xAD, 0xFF, 0x5A, 0x01),
+            (two_register_settings, shr, 0xFF, 0x2C, 0x16, 0x00),
+            (two_register_settings, shr, 0xFF, 0x2D, 0x16, 0x01),
+            (two_register_settings, shl, 0xFF, 0x2D, 0x5A, 0x00),
+            (two_register_settings, shl, 0xFF, 0xAD, 0x5A, 0x01),
         ];
 
-        for (instruction, input, expected_output, expected_flag) in cases {
+        for (settings, instruction, target_value, source_value, expected_output, expected_flag) in
+            cases
+        {
+            let mut machine = Machine::new_with_settings(settings);
+
             machine.registers.set_flag(0xFF);
-            machine.registers.set_register(target, 0xFF);
-            machine.registers.set_register(source, input);
+            machine.registers.set_register(target, target_value);
+            machine.registers.set_register(source, source_value);
             machine.step(instruction);
 
             assert_eq!(expected_output, machine.registers.get_register(target));
-            assert_eq!(input, machine.registers.get_register(source));
+            assert_eq!(source_value, machine.registers.get_register(source));
             assert_eq!(expected_flag, machine.registers.get_flag());
         }
     }

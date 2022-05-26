@@ -65,6 +65,19 @@ impl Instruction {
     }
 }
 
+impl memory::ProgramLoader for &[Instruction] {
+    fn load_into_ram(&self, ram: &mut [u8]) {
+        let bytes: Vec<u8> = self
+            .iter()
+            .flat_map(|instruction| instruction.to_bytes().into_iter())
+            .collect();
+
+        let bytes_slice: &[u8] = &bytes[..];
+
+        bytes_slice.load_into_ram(ram);
+    }
+}
+
 fn from_u4s(a: u8, b: u8, c: u8, d: u8) -> InstructionBytes {
     [u4_to_u8(a, b), u4_to_u8(c, d)]
 }

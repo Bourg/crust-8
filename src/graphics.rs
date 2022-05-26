@@ -1,7 +1,6 @@
 use std::error;
 use std::fmt;
 use std::sync::{Arc, Mutex};
-use std::thread;
 
 pub const WIDTH_PX: usize = 64;
 pub const HEIGHT_PX: usize = 32;
@@ -102,15 +101,38 @@ impl PistonGraphics {
             piston::WindowSettings::new("crust8", [640, 320]).build()?;
 
         while let Some(e) = window.next() {
-            window.draw_2d(&e, |c, g, _| {
+            window.draw_2d(&e, move |c, g, _| {
+                let buffer = self.buffer.lock().unwrap();
+
                 graphics::clear([1.0, 1.0, 1.0, 1.0], g);
-                graphics::rectangle([0.0, 0.0, 0.0, 1.0],
-                                    [0.0, 0.0, 10.0, 10.0], // rectangle
-                                    c.transform, g);
+
+                for y in 0..HEIGHT_PX {
+                    for x in 0..WIDTH_PX {
+                        let pixel = buffer.get_pixel(x as u8, y as u8);
+
+                        if pixel {
+                            let start_x = 10.0 * x as f64;
+                            let start_y = 10.0 * y as f64;
+
+                            graphics::rectangle(
+                                [0.0, 0.0, 0.0, 1.0],
+                                [start_x, start_y, 10.0, 10.0],
+                                c.transform,
+                                g,
+                            );
+                        }
+                    }
+                }
             });
-        };
+        }
 
         Ok(())
+    }
+}
+
+impl EmulatorGraphics for PistonGraphics {
+    fn draw(&mut self, x: u8, y: u8, sprite: &[u8]) -> bool {
+        self.buffer.lock().unwrap().draw(x, y, sprite)
     }
 }
 

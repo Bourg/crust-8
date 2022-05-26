@@ -1,3 +1,5 @@
+use std::fmt;
+
 pub const WIDTH_PX: usize = 64;
 pub const HEIGHT_PX: usize = 32;
 
@@ -36,6 +38,25 @@ impl HeadlessGraphics {
     }
 }
 
+impl fmt::Display for HeadlessGraphics {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for y in 0..HEIGHT_PX {
+            for x in 0..WIDTH_PX {
+                let char = if self.get_pixel(x as u8, y as u8) {
+                    '\u{25A3}'
+                } else {
+                    '\u{25A1}'
+                };
+                write!(f, "{}", char)?;
+            }
+
+            writeln!(f)?;
+        }
+
+        Ok(())
+    }
+}
+
 impl EmulatorGraphics for HeadlessGraphics {
     fn draw(&mut self, canvas_x: u8, canvas_y: u8, sprite: &[u8]) -> bool {
         let mut flipped_pixel = false;
@@ -53,7 +74,7 @@ impl EmulatorGraphics for HeadlessGraphics {
                     let target_x = canvas_x + sprite_x;
                     let target_y = canvas_y + sprite_y;
 
-                    flipped_pixel = flipped_pixel || self.flip_pixel(target_x, target_y);
+                    flipped_pixel = self.flip_pixel(target_x, target_y) || flipped_pixel;
                 }
             }
         }
@@ -105,6 +126,45 @@ mod tests {
         let mut graphics = HeadlessGraphics::new();
 
         // There should be 2048 boolean cells in the graphics buffer
-        assert_eq!([false; 2048], graphics.buffer)
+        assert_eq!([false; 2048], graphics.buffer);
+
+        // Drawing an empty sprite should not affect the buffer or indicate a flip
+        let flipped = graphics.draw(0, 0, &[]);
+        assert_eq!(false, flipped);
+        assert_eq!([false; 2048], graphics.buffer);
+
+        // This sprite forms a checkerboard pattern
+        let sprite_positive = [0xAA, 0x55, 0xAA, 0x55];
+        let sprite_negative = [0x55, 0xAA, 0x55, 0xAA];
+
+        let pixels_aa = [true, false, true, false, true, false, true, false];
+        let pixels_55 = [false, true, false, true, false, true, false, true];
+        let pixels_00 = [false; 8];
+        let pixels_ff = [true; 8];
+
+        let flipped = graphics.draw(0, 0, &sprite_positive);
+        assert_eq!(false, flipped);
+
+        // Check the whole draw area
+        assert_eq!(pixels_aa, graphics.buffer[0..8]);
+        assert_eq!(pixels_55, graphics.buffer[64..72]);
+        assert_eq!(pixels_aa, graphics.buffer[128..136]);
+        assert_eq!(pixels_55, graphics.buffer[192..200]);
+
+        // Check a few things outside the draw area
+        assert_eq!(pixels_00, graphics.buffer[8..16]);
+        assert_eq!(pixels_00, graphics.buffer[200..208]);
+
+        // Draw the checkerboard's inverse
+        let flipped = graphics.draw(0, 0, &sprite_negative);
+        assert_eq!(false, flipped);
+        for y in 0..4 {
+            assert_eq!(pixels_ff, graphics.buffer[y * 64..y * 64 + 8])
+        }
+
+        // Flip both checkerboards off again, should reset the board
+        assert_eq!(true, graphics.draw(0, 0, &sprite_positive));
+        assert_eq!(true, graphics.draw(0, 0, &sprite_negative));
+        assert_eq!([false; 2048], graphics.buffer);
     }
 }

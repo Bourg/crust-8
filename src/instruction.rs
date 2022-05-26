@@ -17,9 +17,13 @@ pub enum Instruction {
     AddXY { target: u8, source: u8 },
     // 8XY5
     SubXY { target: u8, source: u8 },
+    // 8XY6
+    ShrXY { target: u8, source: u8 },
     // 8XY7
     // TODO better naming
     SUBXYReverse { target: u8, source: u8 },
+    // 8XYE
+    ShlXY { target: u8, source: u8 },
 }
 
 impl Instruction {

@@ -50,12 +50,18 @@ impl Machine {
                     (value, FlagSideEffect::SET(!borrow))
                 });
             }
+            Instruction::ShrXY { target, source } => self.flagging_op(target, source, |_, sv| {
+                (sv >> 1, FlagSideEffect::SET(sv % 2 == 1))
+            }),
             Instruction::SUBXYReverse { target, source } => {
                 self.flagging_op(target, source, |tv, sv| {
                     let (value, borrow) = sv.overflowing_sub(tv);
                     (value, FlagSideEffect::SET(!borrow))
                 });
             }
+            Instruction::ShlXY { target, source } => self.flagging_op(target, source, |_, sv| {
+                (sv << 1, FlagSideEffect::SET(sv & 0x80 != 0))
+            }),
         }
     }
 
@@ -70,14 +76,14 @@ impl Machine {
 
     fn op<T>(&mut self, target: &u8, source: &u8, op: T)
     where
-        T: FnOnce(u8, u8) -> u8,
+        T: Fn(u8, u8) -> u8,
     {
         self.flagging_op(target, source, |t, s| (op(t, s), FlagSideEffect::NONE))
     }
 
     fn flagging_op<T>(&mut self, target: &u8, source: &u8, op: T)
     where
-        T: FnOnce(u8, u8) -> (u8, FlagSideEffect),
+        T: Fn(u8, u8) -> (u8, FlagSideEffect),
     {
         let source_value = self.registers.get_register(*source);
         let target_value = self.registers.get_register(*target);
@@ -327,5 +333,33 @@ mod tests {
         assert_eq!([0x66, 0x4B], machine.registers.v[5..7]);
 
         assert_eq!(0xBB, machine.registers.get_flag());
+    }
+
+    #[test]
+    fn bit_shifts() {
+        let mut machine = Machine::new();
+
+        let target = 0xE;
+        let source = 0xD;
+        let shr = &ShrXY { target, source };
+        let shl = &ShlXY { target, source };
+
+        let cases = [
+            (shr, 0x2C, 0x16, 0x00),
+            (shr, 0x2D, 0x16, 0x01),
+            (shl, 0x2D, 0x5A, 0x00),
+            (shl, 0xAD, 0x5A, 0x01),
+        ];
+
+        for (instruction, input, expected_output, expected_flag) in cases {
+            machine.registers.set_flag(0xFF);
+            machine.registers.set_register(target, 0xFF);
+            machine.registers.set_register(source, input);
+            machine.step(instruction);
+
+            assert_eq!(expected_output, machine.registers.get_register(target));
+            assert_eq!(input, machine.registers.get_register(source));
+            assert_eq!(expected_flag, machine.registers.get_flag());
+        }
     }
 }

@@ -187,6 +187,26 @@ mod tests {
     }
 
     #[test]
+    fn load_instructions_as_program() {
+        let mut memory = memory::RAM::new();
+        let program = [
+            AddXNN {
+                register: 8,
+                value: 0x99,
+            },
+            StoreXY {
+                target: 0xA,
+                source: 8,
+            },
+        ];
+        memory.load_program(&program[..]);
+        assert_eq!(
+            [0x78, 0x99, 0x8A, 0x80, 0x00],
+            memory.program_memory()[0..5]
+        );
+    }
+
+    #[test]
     fn test_u4_to_u8() {
         assert_eq!(0, u4_to_u8(0, 0));
         assert_eq!(0x3C, u4_to_u8(0x3, 0xC));

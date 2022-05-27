@@ -1,6 +1,7 @@
 use crate::memory;
 use Instruction::*;
 
+#[derive(Debug, PartialEq)]
 pub enum Instruction {
     // 6XNN
     StoreXNN { register: u8, value: u8 },
@@ -32,6 +33,61 @@ pub enum Instruction {
 type InstructionBytes = [u8; 2];
 
 impl Instruction {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Instruction, String> {
+        if bytes.len() != 2 {
+            return Err(String::from("Instructions must be exactly 2 bytes"));
+        }
+
+        let left = bytes[0];
+        let right = bytes[1];
+
+        match left >> 4 & 0xF {
+            6 => {
+                let register = left & 0xF;
+                let value = right;
+
+                Ok(StoreXNN { register, value })
+            }
+            7 => {
+                let register = left & 0xF;
+                let value = right;
+
+                Ok(AddXNN { register, value })
+            }
+            8 => {
+                let target = left & 0xF;
+                let source = right >> 4;
+
+                match right & 0xF {
+                    0 => Ok(StoreXY { target, source }),
+                    1 => Ok(OrXY { target, source }),
+                    2 => Ok(AndXY { target, source }),
+                    3 => Ok(XorXY { target, source }),
+                    4 => Ok(AddXY { target, source }),
+                    5 => Ok(SubXY { target, source }),
+                    6 => Ok(ShrXY { target, source }),
+                    7 => Ok(SUBXYReverse { target, source }),
+                    0xE => Ok(ShlXY { target, source }),
+                    // TODO extract
+                    _ => Err(format!(
+                        "Unsupported instruction {:#06X}",
+                        ((left as u16) << 8) + right as u16
+                    )),
+                }
+            }
+            0xA => {
+                let value = ((left as u16) << 8) & 0x0F00;
+                let value = value + right as u16;
+
+                Ok(StoreNNN { value })
+            }
+            _ => Err(format!(
+                "Unsupported instruction {:#06X}",
+                ((left as u16) << 8) + right as u16
+            )),
+        }
+    }
+
     pub fn to_bytes(&self) -> InstructionBytes {
         match self {
             StoreXNN {
@@ -54,7 +110,10 @@ impl Instruction {
             ShrXY { target, source } => from_u4s(8, *target, *source, 6),
             SUBXYReverse { target, source } => from_u4s(8, *target, *source, 7),
             ShlXY { target, source } => from_u4s(8, *target, *source, 0xE),
-            StoreNNN { value } => from_u16(0x8000 + value & 0xFFF),
+            StoreNNN { value } => {
+                let value = *value & 0xFFF;
+                from_u16(0xA000 + value)
+            }
         }
     }
 
@@ -97,92 +156,104 @@ fn u4_to_u8(most_significant: u8, least_significant: u8) -> u8 {
 mod tests {
     use super::*;
 
+    static CASES: &[(u16, Instruction)] = &[
+        (
+            0x6ABC,
+            StoreXNN {
+                register: 0xA,
+                value: 0xBC,
+            },
+        ),
+        (
+            0x7ABC,
+            AddXNN {
+                register: 0xA,
+                value: 0xBC,
+            },
+        ),
+        (
+            0x8AB0,
+            StoreXY {
+                target: 0xA,
+                source: 0xB,
+            },
+        ),
+        (
+            0x8AB1,
+            OrXY {
+                target: 0xA,
+                source: 0xB,
+            },
+        ),
+        (
+            0x8AB2,
+            AndXY {
+                target: 0xA,
+                source: 0xB,
+            },
+        ),
+        (
+            0x8AB3,
+            XorXY {
+                target: 0xA,
+                source: 0xB,
+            },
+        ),
+        (
+            0x8AB4,
+            AddXY {
+                target: 0xA,
+                source: 0xB,
+            },
+        ),
+        (
+            0x8AB5,
+            SubXY {
+                target: 0xA,
+                source: 0xB,
+            },
+        ),
+        (
+            0x8AB6,
+            ShrXY {
+                target: 0xA,
+                source: 0xB,
+            },
+        ),
+        (
+            0x8AB7,
+            SUBXYReverse {
+                target: 0xA,
+                source: 0xB,
+            },
+        ),
+        (
+            0x8ABE,
+            ShlXY {
+                target: 0xA,
+                source: 0xB,
+            },
+        ),
+        (0xA1F2, StoreNNN { value: 0x1F2 }),
+    ];
+
+    #[test]
+    fn test_from_bytes() {
+        for (input, expected) in CASES {
+            let input = [(*input >> 8) as u8, (*input & 0x00FF) as u8];
+
+            let actual = Instruction::from_bytes(&input);
+
+            assert_eq!(*expected, actual.unwrap());
+        }
+    }
+
     #[test]
     fn test_to_bytes() {
-        let cases = [
-            (
-                0x6ABC,
-                StoreXNN {
-                    register: 0xA,
-                    value: 0xBC,
-                },
-            ),
-            (
-                0x7ABC,
-                AddXNN {
-                    register: 0xA,
-                    value: 0xBC,
-                },
-            ),
-            (
-                0x8AB0,
-                StoreXY {
-                    target: 0xA,
-                    source: 0xB,
-                },
-            ),
-            (
-                0x8AB1,
-                OrXY {
-                    target: 0xA,
-                    source: 0xB,
-                },
-            ),
-            (
-                0x8AB2,
-                AndXY {
-                    target: 0xA,
-                    source: 0xB,
-                },
-            ),
-            (
-                0x8AB3,
-                XorXY {
-                    target: 0xA,
-                    source: 0xB,
-                },
-            ),
-            (
-                0x8AB4,
-                AddXY {
-                    target: 0xA,
-                    source: 0xB,
-                },
-            ),
-            (
-                0x8AB5,
-                SubXY {
-                    target: 0xA,
-                    source: 0xB,
-                },
-            ),
-            (
-                0x8AB6,
-                ShrXY {
-                    target: 0xA,
-                    source: 0xB,
-                },
-            ),
-            (
-                0x8AB7,
-                SUBXYReverse {
-                    target: 0xA,
-                    source: 0xB,
-                },
-            ),
-            (
-                0x8ABE,
-                ShlXY {
-                    target: 0xA,
-                    source: 0xB,
-                },
-            ),
-        ];
-
-        for (expected, input) in cases {
+        for (expected, input) in CASES {
             let actual = input.to_u16();
 
-            assert_eq!(expected, actual);
+            assert_eq!(*expected, actual);
         }
     }
 

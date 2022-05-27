@@ -16,16 +16,31 @@ enum FlagSideEffect {
     SET(bool),
 }
 
-impl<'a, G> Machine<'a, G> where G: graphics::Draw {}
+// TODO can I get rid of the lifetime spec, let the machine own its settings
+impl<'a, G> Machine<'a, G>
+where
+    G: graphics::Draw,
+{
+    pub fn new(graphics: G, settings: &'a settings::Settings) -> Machine<'a, G> {
+        Machine {
+            ram: memory::RAM::new(),
+            registers: register::Registers::new(),
+            graphics,
+            settings,
+        }
+    }
+}
 
 impl<'a> Machine<'a, graphics::HeadlessGraphics> {
-    pub fn new() -> Machine<'a, graphics::HeadlessGraphics> {
-        Machine::new_with_settings(&settings::Settings {
+    pub fn new_headless() -> Machine<'a, graphics::HeadlessGraphics> {
+        Machine::new_headless_with_settings(&settings::Settings {
             bit_shift_mode: settings::BitShiftMode::OneRegister,
         })
     }
 
-    pub fn new_with_settings(settings: &settings::Settings) -> Machine<graphics::HeadlessGraphics> {
+    pub fn new_headless_with_settings(
+        settings: &settings::Settings,
+    ) -> Machine<graphics::HeadlessGraphics> {
         Machine {
             ram: memory::RAM::new(),
             registers: register::Registers::new(),
@@ -134,7 +149,7 @@ mod tests {
 
     #[test]
     fn store_xnn() {
-        let mut machine = Machine::new();
+        let mut machine = Machine::new_headless();
 
         machine.step_many(&[
             StoreXNN {
@@ -163,7 +178,7 @@ mod tests {
 
     #[test]
     fn store_xy() {
-        let mut machine = Machine::new();
+        let mut machine = Machine::new_headless();
 
         machine.step_many([
             &StoreXNN {
@@ -184,7 +199,7 @@ mod tests {
 
     #[test]
     fn add_xnn() {
-        let mut machine = Machine::new();
+        let mut machine = Machine::new_headless();
 
         // Numeric add should not affect the flag, so place a value there to ensure it isn't hurt
         let expected_flag = 0x8F;
@@ -223,7 +238,7 @@ mod tests {
 
     #[test]
     fn add_xy() {
-        let mut machine = Machine::new();
+        let mut machine = Machine::new_headless();
 
         // Set a flag that should be clobbered by non-overflowing flag set
         machine.registers.set_flag(0xEE);
@@ -266,7 +281,7 @@ mod tests {
 
     #[test]
     fn sub() {
-        let mut machine = Machine::new();
+        let mut machine = Machine::new_headless();
 
         machine.registers.set_register(0x0, 17);
         machine.registers.set_register(0x1, 30);
@@ -291,7 +306,7 @@ mod tests {
 
     #[test]
     fn sub_reverse() {
-        let mut machine = Machine::new();
+        let mut machine = Machine::new_headless();
 
         // No borrow
         machine.step_many([
@@ -333,7 +348,7 @@ mod tests {
 
     #[test]
     fn bitwise() {
-        let mut machine = Machine::new();
+        let mut machine = Machine::new_headless();
 
         machine.registers.set_flag(0xBB);
 
@@ -393,7 +408,7 @@ mod tests {
         for (settings, instruction, target_value, source_value, expected_output, expected_flag) in
             cases
         {
-            let mut machine = Machine::new_with_settings(settings);
+            let mut machine = Machine::new_headless_with_settings(settings);
 
             machine.registers.set_flag(0xFF);
             machine.registers.set_register(target, target_value);
@@ -408,7 +423,7 @@ mod tests {
 
     #[test]
     fn store_nnn() {
-        let mut machine = Machine::new();
+        let mut machine = Machine::new_headless();
 
         assert_eq!(0x0, machine.registers.i);
 

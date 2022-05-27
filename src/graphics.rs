@@ -85,6 +85,7 @@ impl Draw for HeadlessGraphics {
     }
 }
 
+// TODO I'm really not super happy with the ownership structure for window graphics
 #[derive(Clone)]
 pub struct PistonGraphics {
     buffer: Arc<Mutex<HeadlessGraphics>>,

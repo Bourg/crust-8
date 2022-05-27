@@ -4,32 +4,75 @@ use Instruction::*;
 #[derive(Debug, PartialEq)]
 pub enum Instruction {
     // 6XNN
-    StoreXNN { register: u8, value: u8 },
+    StoreXNN {
+        register: u8,
+        value: u8,
+    },
     // 7XNN
-    AddXNN { register: u8, value: u8 },
+    AddXNN {
+        register: u8,
+        value: u8,
+    },
     // 8XY0
-    StoreXY { target: u8, source: u8 },
+    StoreXY {
+        target: u8,
+        source: u8,
+    },
     // 8XY1
-    OrXY { target: u8, source: u8 },
+    OrXY {
+        target: u8,
+        source: u8,
+    },
     // 8XY2
-    AndXY { target: u8, source: u8 },
+    AndXY {
+        target: u8,
+        source: u8,
+    },
     // 8XY3
-    XorXY { target: u8, source: u8 },
+    XorXY {
+        target: u8,
+        source: u8,
+    },
     // 8XY4
-    AddXY { target: u8, source: u8 },
+    AddXY {
+        target: u8,
+        source: u8,
+    },
     // 8XY5
-    SubXY { target: u8, source: u8 },
+    SubXY {
+        target: u8,
+        source: u8,
+    },
     // 8XY6
-    ShrXY { target: u8, source: u8 },
+    ShrXY {
+        target: u8,
+        source: u8,
+    },
     // 8XY7
     // TODO better naming
-    SUBXYReverse { target: u8, source: u8 },
+    SUBXYReverse {
+        target: u8,
+        source: u8,
+    },
     // 8XYE
-    ShlXY { target: u8, source: u8 },
+    ShlXY {
+        target: u8,
+        source: u8,
+    },
     // ANNN
-    StoreNNN { value: memory::Address },
+    StoreNNN {
+        value: memory::Address,
+    },
+    // DXYN
+    DrawXYN {
+        x_register: u8,
+        y_register: u8,
+        bytes: u8,
+    },
     // FX1E
-    AddIX { register: u8 },
+    AddIX {
+        register: u8,
+    },
 }
 
 type InstructionBytes = [u8; 2];
@@ -83,6 +126,11 @@ impl Instruction {
 
                 Ok(StoreNNN { value })
             }
+            0xD => Ok(DrawXYN {
+                x_register: left & 0xF,
+                y_register: right >> 4,
+                bytes: right & 0xF,
+            }),
             0xF => Ok(AddIX {
                 register: left & 0xF,
             }),
@@ -119,6 +167,11 @@ impl Instruction {
                 let value = *value & 0xFFF;
                 from_u16(0xA000 + value)
             }
+            DrawXYN {
+                x_register,
+                y_register,
+                bytes,
+            } => from_u4s(0xD, *x_register, *y_register, *bytes),
             AddIX { register } => from_u4s(0xF, *register, 0x1, 0xE),
         }
     }
@@ -241,6 +294,14 @@ mod tests {
             },
         ),
         (0xA1F2, StoreNNN { value: 0x1F2 }),
+        (
+            0xD789,
+            DrawXYN {
+                x_register: 7,
+                y_register: 8,
+                bytes: 9,
+            },
+        ),
         (0xFE1E, AddIX { register: 0xE }),
     ];
 

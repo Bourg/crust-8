@@ -84,6 +84,13 @@ impl RAM {
         &self.value[address..address + 2]
     }
 
+    pub fn get_sprite(&self, address: Address, bytes: u8) -> &[u8] {
+        let address = address as usize;
+        let bytes = bytes as usize;
+
+        &self.value[address..address + bytes]
+    }
+
     pub fn load_program<T>(&mut self, loader: T)
     where
         T: ProgramLoader,

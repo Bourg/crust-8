@@ -60,6 +60,7 @@ impl fmt::Display for HeadlessGraphics {
 }
 
 impl Draw for HeadlessGraphics {
+    // TODO out-of-bounds should happen silently, not error
     fn draw(&mut self, canvas_x: u8, canvas_y: u8, sprite: &[u8]) -> bool {
         let mut flipped_pixel = false;
 

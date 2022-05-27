@@ -127,6 +127,22 @@ where
                 self.registers.i = *value;
                 self.registers.advance_pc();
             }
+            Instruction::DrawXYN {
+                x_register,
+                y_register,
+                bytes,
+            } => {
+                let x = self.registers.get_register(*x_register);
+                let y = self.registers.get_register(*y_register);
+
+                let sprite_address = self.registers.i;
+                let sprite = self.ram.get_sprite(sprite_address, *bytes);
+
+                let flipped = self.graphics.draw(x, y, sprite);
+
+                self.registers.set_flag(if flipped { 1 } else { 0 });
+                self.registers.advance_pc();
+            }
             Instruction::AddIX { register } => {
                 self.registers.i += self.registers.get_register(*register) as u16;
                 self.registers.advance_pc();

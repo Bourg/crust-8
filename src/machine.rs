@@ -1,10 +1,12 @@
+use crate::graphics;
 use crate::instruction::Instruction;
 use crate::register;
 use crate::{memory, settings};
 
-pub struct Machine<'a> {
+pub struct Machine<'a, G: graphics::Draw> {
     pub ram: memory::RAM,
     pub registers: register::Registers,
+    pub graphics: G,
     pub settings: &'a settings::Settings,
 }
 
@@ -14,17 +16,20 @@ enum FlagSideEffect {
     SET(bool),
 }
 
-impl<'a> Machine<'a> {
-    pub fn new() -> Machine<'a> {
+impl<'a, G> Machine<'a, G> where G: graphics::Draw {}
+
+impl<'a> Machine<'a, graphics::HeadlessGraphics> {
+    pub fn new() -> Machine<'a, graphics::HeadlessGraphics> {
         Machine::new_with_settings(&settings::Settings {
             bit_shift_mode: settings::BitShiftMode::OneRegister,
         })
     }
 
-    pub fn new_with_settings(settings: &settings::Settings) -> Machine {
+    pub fn new_with_settings(settings: &settings::Settings) -> Machine<graphics::HeadlessGraphics> {
         Machine {
             ram: memory::RAM::new(),
             registers: register::Registers::new(),
+            graphics: graphics::HeadlessGraphics::new(),
             settings,
         }
     }

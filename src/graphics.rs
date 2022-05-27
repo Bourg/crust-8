@@ -7,7 +7,7 @@ pub const HEIGHT_PX: usize = 32;
 
 pub type Pixel = bool;
 
-pub trait EmulatorGraphics {
+pub trait Draw {
     fn draw(&mut self, x: u8, y: u8, sprite: &[u8]) -> bool;
 }
 
@@ -59,7 +59,7 @@ impl fmt::Display for HeadlessGraphics {
     }
 }
 
-impl EmulatorGraphics for HeadlessGraphics {
+impl Draw for HeadlessGraphics {
     fn draw(&mut self, canvas_x: u8, canvas_y: u8, sprite: &[u8]) -> bool {
         let mut flipped_pixel = false;
 
@@ -85,6 +85,7 @@ impl EmulatorGraphics for HeadlessGraphics {
     }
 }
 
+#[derive(Clone)]
 pub struct PistonGraphics {
     buffer: Arc<Mutex<HeadlessGraphics>>,
 }
@@ -130,7 +131,7 @@ impl PistonGraphics {
     }
 }
 
-impl EmulatorGraphics for PistonGraphics {
+impl Draw for PistonGraphics {
     fn draw(&mut self, x: u8, y: u8, sprite: &[u8]) -> bool {
         self.buffer.lock().unwrap().draw(x, y, sprite)
     }

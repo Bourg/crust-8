@@ -127,6 +127,10 @@ where
                 self.registers.i = *value;
                 self.registers.advance_pc();
             }
+            Instruction::AddIX { register } => {
+                self.registers.i += self.registers.get_register(*register) as u16;
+                self.registers.advance_pc();
+            }
         }
     }
 
@@ -510,5 +514,21 @@ mod tests {
 
         assert_eq!([0u8; 16], machine.registers.v);
         assert_eq!(0x4090, machine.registers.i)
+    }
+
+    #[test]
+    fn add_ix() {
+        let mut machine = Machine::new_headless();
+
+        machine.step_many([
+            &StoreNNN { value: 0xCDE },
+            &StoreXNN {
+                register: 7,
+                value: 0x11,
+            },
+            &AddIX { register: 7 },
+        ]);
+
+        assert_eq!(0xCEF, machine.registers.i);
     }
 }

@@ -1,28 +1,25 @@
-use crust_8::graphics;
-use crust_8::graphics::Draw;
+use crust_8::{graphics, machine, settings};
 use std::thread;
-use std::time::Duration;
 
 fn main() {
-    let graphics = graphics::PistonGraphics::new();
-    let mut thread_graphics = graphics.clone();
+    // Create two handles to the graphics implementation
+    let window_graphics = graphics::PistonGraphics::new();
+    let machine_graphics = window_graphics.clone();
 
     thread::spawn(move || {
-        let sprite = [0xAA, 0x55, 0xAA, 0xFF, 0x00, 0xFF, 0x55, 0xAA, 0x55];
+        let mut machine = machine::Machine::new(
+            machine_graphics,
+            &settings::Settings {
+                bit_shift_mode: settings::BitShiftMode::OneRegister,
+            },
+        );
 
-        let mut x = 0;
-        let mut y = 0;
-
-        thread_graphics.draw(x, y, &sprite);
-        loop {
-            thread::sleep(Duration::from_secs(1));
-
-            thread_graphics.draw(x, y, &sprite);
-            x = x + 1;
-            y = y + 1;
-            thread_graphics.draw(x, y, &sprite);
-        }
+        let completion_message = match machine.run() {
+            Ok(()) => String::from("Machine completed successfully"),
+            Err(e) => format!("Machine completed exceptionally: {:?}", e),
+        };
+        println!("{}", completion_message);
     });
 
-    graphics.open_window().unwrap();
+    window_graphics.open_window().unwrap();
 }

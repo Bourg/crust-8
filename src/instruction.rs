@@ -28,6 +28,8 @@ pub enum Instruction {
     ShlXY { target: u8, source: u8 },
     // ANNN
     StoreNNN { value: memory::Address },
+    // FX1E
+    AddIX { register: u8 },
 }
 
 type InstructionBytes = [u8; 2];
@@ -81,6 +83,9 @@ impl Instruction {
 
                 Ok(StoreNNN { value })
             }
+            0xF => Ok(AddIX {
+                register: left & 0xF,
+            }),
             _ => Err(format!(
                 "Unsupported instruction {:#06X}",
                 ((left as u16) << 8) + right as u16
@@ -114,6 +119,7 @@ impl Instruction {
                 let value = *value & 0xFFF;
                 from_u16(0xA000 + value)
             }
+            AddIX { register } => from_u4s(0xF, *register, 0x1, 0xE),
         }
     }
 
@@ -235,6 +241,7 @@ mod tests {
             },
         ),
         (0xA1F2, StoreNNN { value: 0x1F2 }),
+        (0xFE1E, AddIX { register: 0xE }),
     ];
 
     #[test]

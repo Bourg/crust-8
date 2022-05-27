@@ -35,4 +35,9 @@ impl Registers {
     pub fn get_flag(&self) -> u8 {
         self.get_register(FLAG_REGISTER)
     }
+
+    pub fn advance_pc(&mut self) {
+        // Instructions are 2-byte aligned, so advance by 2
+        self.pc += 2;
+    }
 }

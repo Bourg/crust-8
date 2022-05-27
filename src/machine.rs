@@ -2,6 +2,7 @@ use crate::graphics;
 use crate::instruction::Instruction;
 use crate::register;
 use crate::{memory, settings};
+use std::error;
 
 pub struct Machine<'a, G: graphics::Draw> {
     pub ram: memory::RAM,
@@ -16,21 +17,7 @@ enum FlagSideEffect {
     SET(bool),
 }
 
-// TODO can I get rid of the lifetime spec, let the machine own its settings
-impl<'a, G> Machine<'a, G>
-where
-    G: graphics::Draw,
-{
-    pub fn new(graphics: G, settings: &'a settings::Settings) -> Machine<'a, G> {
-        Machine {
-            ram: memory::RAM::new(),
-            registers: register::Registers::new(),
-            graphics,
-            settings,
-        }
-    }
-}
-
+// Convenience constructors for common headless graphics cases
 impl<'a> Machine<'a, graphics::HeadlessGraphics> {
     pub fn new_headless() -> Machine<'a, graphics::HeadlessGraphics> {
         Machine::new_headless_with_settings(&settings::Settings {
@@ -48,6 +35,37 @@ impl<'a> Machine<'a, graphics::HeadlessGraphics> {
             settings,
         }
     }
+}
+
+// TODO can I get rid of the lifetime spec, let the machine own its settings
+// Primary machine implementation
+impl<'a, G> Machine<'a, G>
+where
+    G: graphics::Draw,
+{
+    pub fn new(graphics: G, settings: &'a settings::Settings) -> Machine<'a, G> {
+        Machine {
+            ram: memory::RAM::new(),
+            registers: register::Registers::new(),
+            graphics,
+            settings,
+        }
+    }
+
+    pub fn load_program<T>(&mut self, loader: T)
+    where
+        T: memory::ProgramLoader,
+    {
+        self.ram.load_program(loader);
+    }
+
+    pub fn run(&mut self) -> Result<(), Box<dyn error::Error>> {
+        loop {
+            let instruction_bytes = self.ram.get_instruction(self.registers.pc);
+            let instruction = Instruction::from_bytes(instruction_bytes)?;
+            self.step(&instruction);
+        }
+    }
 
     pub fn step(&mut self, instruction: &Instruction) {
         let bit_shift_mode = self.settings.bit_shift_mode;
@@ -55,15 +73,18 @@ impl<'a> Machine<'a, graphics::HeadlessGraphics> {
         match instruction {
             Instruction::StoreXNN { register, value } => {
                 self.registers.set_register(*register, *value);
+                self.registers.advance_pc();
             }
             Instruction::AddXNN { register, value } => {
                 let (value, _) = self.registers.v[*register as usize].overflowing_add(*value);
 
                 self.registers.set_register(*register, value);
+                self.registers.advance_pc();
             }
             Instruction::StoreXY { target, source } => {
                 let source_value = self.registers.get_register(*source);
                 self.registers.set_register(*target, source_value);
+                self.registers.advance_pc();
             }
             Instruction::OrXY { target, source } => self.op(target, source, |tv, sv| tv | sv),
             Instruction::AndXY { target, source } => self.op(target, source, |tv, sv| tv & sv),
@@ -104,6 +125,7 @@ impl<'a> Machine<'a, graphics::HeadlessGraphics> {
             }),
             Instruction::StoreNNN { value } => {
                 self.registers.i = *value;
+                self.registers.advance_pc();
             }
         }
     }
@@ -138,6 +160,8 @@ impl<'a> Machine<'a, graphics::HeadlessGraphics> {
         if let FlagSideEffect::SET(flag) = flag_effect {
             self.registers.set_flag(if flag { 1 } else { 0 });
         }
+
+        self.registers.advance_pc();
     }
 }
 
@@ -146,6 +170,61 @@ mod tests {
     use super::*;
     use crate::instruction::Instruction::*;
     use crate::settings::BitShiftMode;
+
+    #[test]
+    fn run() {
+        let mut machine = Machine::new_headless();
+
+        // Load the machine with an empty program and run - should stop immediately
+        machine.load_program(&[] as &[u8]);
+        let result = machine.run();
+        assert!(result.is_err());
+        assert_eq!(0x200, machine.registers.pc);
+
+        // Load a simple program that does some math
+        machine.load_program(&[
+            StoreXNN {
+                register: 0,
+                value: 24,
+            },
+            StoreXNN {
+                register: 1,
+                value: 26,
+            },
+            StoreXY {
+                target: 2,
+                source: 1,
+            },
+            AddXY {
+                target: 2,
+                source: 0,
+            },
+            AddXNN {
+                register: 2,
+                value: 10,
+            },
+            StoreXY {
+                target: 3,
+                source: 2,
+            },
+            ShlXY {
+                target: 3,
+                source: 3,
+            },
+            ShlXY {
+                target: 3,
+                source: 3,
+            },
+            SubXY {
+                target: 3,
+                source: 0,
+            },
+        ] as &[Instruction]);
+
+        assert!(machine.run().is_err());
+        assert_eq!(0x212, machine.registers.pc);
+        assert_eq!([24, 26, 60, 216], machine.registers.v[0..4]);
+    }
 
     #[test]
     fn store_xnn() {

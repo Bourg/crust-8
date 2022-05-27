@@ -78,6 +78,12 @@ impl RAM {
         &mut self.value[ADDRESS_PROGRAM_START..]
     }
 
+    pub fn get_instruction(&self, address: Address) -> &[u8] {
+        let address = address as usize;
+
+        &self.value[address..address + 2]
+    }
+
     pub fn load_program<T>(&mut self, loader: T)
     where
         T: ProgramLoader,

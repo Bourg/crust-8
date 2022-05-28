@@ -78,6 +78,10 @@ pub enum Instruction {
     StoreSpriteX {
         register: u8,
     },
+    // FX33
+    StoreDecimal {
+        register: u8,
+    },
 }
 
 type InstructionBytes = [u8; 2];
@@ -139,15 +143,16 @@ impl Instruction {
                 y_register: right >> 4,
                 bytes: right & 0xF,
             }),
-            0xF => match right {
-                0x1E => Ok(AddIX {
-                    register: left & 0xF,
-                }),
-                0x29 => Ok(StoreSpriteX {
-                    register: left & 0xF,
-                }),
-                _ => err_unsupported_instruction(left, right),
-            },
+            0xF => {
+                let register = left & 0xF;
+
+                match right {
+                    0x1E => Ok(AddIX { register }),
+                    0x29 => Ok(StoreSpriteX { register }),
+                    0x33 => Ok(StoreDecimal { register }),
+                    _ => err_unsupported_instruction(left, right),
+                }
+            }
             _ => Err(format!(
                 "Unsupported instruction {:#06X}",
                 ((left as u16) << 8) + right as u16
@@ -189,6 +194,7 @@ impl Instruction {
             } => from_u4s(0xD, *x_register, *y_register, *bytes),
             AddIX { register } => from_u4s(0xF, *register, 0x1, 0xE),
             StoreSpriteX { register } => from_u4s(0xF, *register, 0x2, 0x9),
+            StoreDecimal { register } => from_u4s(0xF, *register, 0x3, 0x3),
         }
     }
 

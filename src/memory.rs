@@ -78,6 +78,18 @@ impl RAM {
         &mut self.value[ADDRESS_PROGRAM_START..]
     }
 
+    pub fn address(&self, address: Address) -> &[u8] {
+        let address = address as usize;
+
+        &self.value[address..]
+    }
+
+    pub fn address_mut(&mut self, address: Address) -> &mut [u8] {
+        let address = address as usize;
+
+        &mut self.value[address..]
+    }
+
     pub fn get_instruction(&self, address: Address) -> &[u8] {
         let address = address as usize;
 

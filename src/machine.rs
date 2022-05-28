@@ -169,6 +169,19 @@ where
 
                 self.registers.advance_pc();
             }
+            Instruction::StoreDecimal { register } => {
+                let value = self.registers.get_register(*register);
+                let address = self.registers.i;
+
+                let (high, mid, low) = to_decimal_digits(value);
+                let memory = self.ram.address_mut(address);
+
+                memory[0] = high;
+                memory[1] = mid;
+                memory[2] = low;
+
+                self.registers.advance_pc();
+            }
         }
     }
 
@@ -196,6 +209,14 @@ where
 
         self.registers.advance_pc();
     }
+}
+
+fn to_decimal_digits(value: u8) -> (u8, u8, u8) {
+    let high = (value / 100) % 10;
+    let mid = (value / 10) % 10;
+    let low = value % 10;
+
+    (high, mid, low)
 }
 
 #[cfg(test)]
@@ -596,6 +617,38 @@ mod tests {
         assert!(error);
 
         assert_eq!(5 * 0xA, machine.registers.i);
+    }
+
+    #[test]
+    fn store_decimal() {
+        let mut machine = Machine::new_headless();
+        let address = 0x222;
+
+        let error = machine
+            .load_program_and_run(&vec![
+                StoreNNN { value: address },
+                StoreXNN {
+                    register: 8,
+                    value: 159,
+                },
+                StoreDecimal { register: 8 },
+            ])
+            .is_err();
+        assert!(error);
+
+        let loaded_memory = &machine.ram.address(address)[0..3];
+        assert_eq!([1, 5, 9], loaded_memory);
+    }
+
+    #[test]
+    fn test_to_decimal_digits() {
+        assert_eq!((0, 0, 0), to_decimal_digits(0));
+        assert_eq!((0, 0, 1), to_decimal_digits(1));
+        assert_eq!((0, 1, 0), to_decimal_digits(10));
+        assert_eq!((0, 7, 0), to_decimal_digits(70));
+        assert_eq!((1, 0, 0), to_decimal_digits(100));
+        assert_eq!((1, 2, 3), to_decimal_digits(123));
+        assert_eq!((2, 5, 5), to_decimal_digits(255));
     }
 
     // TODO graphics integration test

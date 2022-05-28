@@ -4,11 +4,11 @@ use crate::register;
 use crate::{memory, settings};
 use std::error;
 
-pub struct Machine<'a, G: graphics::Draw> {
+pub struct Machine<G: graphics::Draw> {
     pub ram: memory::RAM,
     pub registers: register::Registers,
     pub graphics: G,
-    pub settings: &'a settings::Settings,
+    pub settings: settings::Settings,
 }
 
 // TODO where to put this
@@ -20,15 +20,15 @@ enum FlagSideEffect {
 type RunResult = Result<(), Box<dyn error::Error>>;
 
 // Convenience constructors for common headless graphics cases
-impl<'a> Machine<'a, graphics::HeadlessGraphics> {
-    pub fn new_headless() -> Machine<'a, graphics::HeadlessGraphics> {
-        Machine::new_headless_with_settings(&settings::Settings {
+impl Machine<graphics::HeadlessGraphics> {
+    pub fn new_headless() -> Machine<graphics::HeadlessGraphics> {
+        Machine::new_headless_with_settings(settings::Settings {
             bit_shift_mode: settings::BitShiftMode::OneRegister,
         })
     }
 
     pub fn new_headless_with_settings(
-        settings: &settings::Settings,
+        settings: settings::Settings,
     ) -> Machine<graphics::HeadlessGraphics> {
         Machine {
             ram: memory::RAM::new(),
@@ -41,11 +41,11 @@ impl<'a> Machine<'a, graphics::HeadlessGraphics> {
 
 // TODO can I get rid of the lifetime spec, let the machine own its settings
 // Primary machine implementation
-impl<'a, G> Machine<'a, G>
+impl<G> Machine<G>
 where
     G: graphics::Draw,
 {
-    pub fn new(graphics: G, settings: &'a settings::Settings) -> Machine<'a, G> {
+    pub fn new(graphics: G, settings: settings::Settings) -> Machine<G> {
         Machine {
             ram: memory::RAM::new(),
             registers: register::Registers::new(),
@@ -536,7 +536,7 @@ mod tests {
         for (settings, instruction, target_value, source_value, expected_output, expected_flag) in
             cases
         {
-            let mut machine = Machine::new_headless_with_settings(settings);
+            let mut machine = Machine::new_headless_with_settings(settings.clone());
 
             machine.registers.set_flag(0xFF);
             machine.registers.set_register(target, target_value);

@@ -14,7 +14,7 @@ fn main() {
     thread::spawn(move || {
         let mut machine = machine::Machine::new(
             machine_graphics,
-            &settings::Settings {
+            settings::Settings {
                 bit_shift_mode: settings::BitShiftMode::OneRegister,
             },
         );

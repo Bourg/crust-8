@@ -6,6 +6,7 @@ pub enum BitShiftMode {
     OneRegister,
 }
 
+#[derive(Copy, Clone)]
 pub struct Settings {
     pub bit_shift_mode: BitShiftMode,
 }

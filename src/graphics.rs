@@ -8,6 +8,8 @@ pub const HEIGHT_PX: usize = 32;
 pub type Pixel = bool;
 
 pub trait Draw {
+    fn clear(&mut self);
+
     fn draw(&mut self, x: u8, y: u8, sprite: &[u8]) -> bool;
 }
 
@@ -69,7 +71,12 @@ impl fmt::Display for HeadlessGraphics {
 }
 
 impl Draw for HeadlessGraphics {
-    // TODO out-of-bounds should happen silently, not error
+    fn clear(&mut self) {
+        for pixel in self.buffer.iter_mut() {
+            *pixel = false;
+        }
+    }
+
     fn draw(&mut self, canvas_x: u8, canvas_y: u8, sprite: &[u8]) -> bool {
         let mut flipped_pixel = false;
 
@@ -143,6 +150,11 @@ impl PistonGraphics {
 }
 
 impl Draw for PistonGraphics {
+    // TODO do we need result types for these
+    fn clear(&mut self) {
+        self.buffer.lock().unwrap().clear();
+    }
+
     fn draw(&mut self, x: u8, y: u8, sprite: &[u8]) -> bool {
         self.buffer.lock().unwrap().draw(x, y, sprite)
     }

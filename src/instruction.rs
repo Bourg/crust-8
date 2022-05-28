@@ -3,6 +3,8 @@ use Instruction::*;
 
 #[derive(Debug, PartialEq)]
 pub enum Instruction {
+    // 00E0
+    ClearScreen,
     // 6XNN
     StoreXNN {
         register: u8,
@@ -87,6 +89,14 @@ impl Instruction {
         let right = bytes[1];
 
         match left >> 4 & 0xF {
+            0 => {
+                if left == 0 && right == 0xE0 {
+                    Ok(ClearScreen)
+                } else {
+                    // TODO shared helper for error
+                    Err(String::from("Unsupported instruction"))
+                }
+            }
             6 => {
                 let register = left & 0xF;
                 let value = right;
@@ -143,6 +153,7 @@ impl Instruction {
 
     pub fn to_bytes(&self) -> InstructionBytes {
         match self {
+            ClearScreen => [0x00, 0xE0],
             StoreXNN {
                 register,
                 value: amount,
@@ -216,6 +227,7 @@ mod tests {
     use super::*;
 
     static CASES: &[(u16, Instruction)] = &[
+        (0x00E0, ClearScreen),
         (
             0x6ABC,
             StoreXNN {

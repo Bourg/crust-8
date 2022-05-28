@@ -71,6 +71,10 @@ where
         let bit_shift_mode = self.settings.bit_shift_mode;
 
         match instruction {
+            Instruction::ClearScreen => {
+                self.graphics.clear();
+                self.registers.advance_pc();
+            }
             Instruction::StoreXNN { register, value } => {
                 self.registers.set_register(*register, *value);
                 self.registers.advance_pc();
@@ -547,4 +551,7 @@ mod tests {
 
         assert_eq!(0xCEF, machine.registers.i);
     }
+
+    // TODO graphics integration test
+    // TODO split the pub tests into integration test files
 }

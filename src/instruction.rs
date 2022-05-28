@@ -51,7 +51,6 @@ pub enum Instruction {
         source: u8,
     },
     // 8XY7
-    // TODO better naming
     SUBXYReverse {
         target: u8,
         source: u8,
@@ -97,8 +96,7 @@ impl Instruction {
                 if left == 0 && right == 0xE0 {
                     Ok(ClearScreen)
                 } else {
-                    // TODO shared helper for error
-                    Err(String::from("Unsupported instruction"))
+                    err_unsupported_instruction(left, right)
                 }
             }
             6 => {
@@ -127,11 +125,7 @@ impl Instruction {
                     6 => Ok(ShrXY { target, source }),
                     7 => Ok(SUBXYReverse { target, source }),
                     0xE => Ok(ShlXY { target, source }),
-                    // TODO extract
-                    _ => Err(format!(
-                        "Unsupported instruction {:#06X}",
-                        ((left as u16) << 8) + right as u16
-                    )),
+                    _ => err_unsupported_instruction(left, right),
                 }
             }
             0xA => {
@@ -152,7 +146,7 @@ impl Instruction {
                 0x29 => Ok(StoreSpriteX {
                     register: left & 0xF,
                 }),
-                _ => Err(String::from("TODO")),
+                _ => err_unsupported_instruction(left, right),
             },
             _ => Err(format!(
                 "Unsupported instruction {:#06X}",
@@ -216,6 +210,13 @@ impl memory::ProgramLoader for &Vec<Instruction> {
 
         bytes_slice.load_into_ram(ram);
     }
+}
+
+fn err_unsupported_instruction<T>(left: u8, right: u8) -> Result<T, String> {
+    Err(format!(
+        "Unsupported instruction {:#06X}",
+        ((left as u16) << 8) + right as u16
+    ))
 }
 
 fn from_u4s(a: u8, b: u8, c: u8, d: u8) -> InstructionBytes {

@@ -199,6 +199,7 @@ fn main() {
     let window_graphics = graphics::PistonGraphics::new();
     let machine_graphics = window_graphics.clone();
 
+    // TODO the machine shouldn't start until the display initializes
     thread::spawn(move || {
         let mut machine = machine::Machine::new(
             machine_graphics,

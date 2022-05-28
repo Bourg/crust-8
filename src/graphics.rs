@@ -23,20 +23,29 @@ impl HeadlessGraphics {
         }
     }
 
-    pub fn get_pixel(&self, x: u8, y: u8) -> Pixel {
-        self.buffer[HeadlessGraphics::index_pixel(x, y)]
+    pub fn get_pixel(&self, x: u8, y: u8) -> Option<Pixel> {
+        HeadlessGraphics::index_pixel(x, y).map(|index| self.buffer[index])
     }
 
     fn flip_pixel(&mut self, x: u8, y: u8) -> bool {
-        let previous = self.get_pixel(x, y);
-
-        self.buffer[HeadlessGraphics::index_pixel(x, y)] = !previous;
-
-        return previous;
+        HeadlessGraphics::index_pixel(x, y)
+            .map(|index| {
+                let previous = self.buffer[index];
+                self.buffer[index] = !previous;
+                return previous;
+            })
+            .unwrap_or(false)
     }
 
-    fn index_pixel(x: u8, y: u8) -> usize {
-        x as usize + WIDTH_PX * y as usize
+    fn index_pixel(x: u8, y: u8) -> Option<usize> {
+        let x = x as usize;
+        let y = y as usize;
+
+        if x >= WIDTH_PX || y >= HEIGHT_PX {
+            None
+        } else {
+            Some(x + WIDTH_PX * y)
+        }
     }
 }
 
@@ -44,7 +53,7 @@ impl fmt::Display for HeadlessGraphics {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for y in 0..HEIGHT_PX {
             for x in 0..WIDTH_PX {
-                let char = if self.get_pixel(x as u8, y as u8) {
+                let char = if self.get_pixel(x as u8, y as u8) == Some(true) {
                     '\u{25A3}'
                 } else {
                     '\u{25A1}'
@@ -113,7 +122,7 @@ impl PistonGraphics {
                     for x in 0..WIDTH_PX {
                         let pixel = buffer.get_pixel(x as u8, y as u8);
 
-                        if pixel {
+                        if pixel == Some(true) {
                             let start_x = 10.0 * x as f64;
                             let start_y = 10.0 * y as f64;
 
@@ -145,12 +154,16 @@ mod tests {
 
     #[test]
     fn test_index_pixel() {
-        assert_eq!(0, HeadlessGraphics::index_pixel(0, 0));
-        assert_eq!(5, HeadlessGraphics::index_pixel(5, 0));
-        assert_eq!(63, HeadlessGraphics::index_pixel(63, 0));
-        assert_eq!(64, HeadlessGraphics::index_pixel(0, 1));
-        assert_eq!(140, HeadlessGraphics::index_pixel(12, 2));
-        assert_eq!(2047, HeadlessGraphics::index_pixel(63, 31));
+        assert_eq!(None, HeadlessGraphics::index_pixel(32, 63));
+        assert_eq!(None, HeadlessGraphics::index_pixel(31, 64));
+        assert_eq!(None, HeadlessGraphics::index_pixel(32, 64));
+
+        assert_eq!(0, HeadlessGraphics::index_pixel(0, 0).unwrap());
+        assert_eq!(5, HeadlessGraphics::index_pixel(5, 0).unwrap());
+        assert_eq!(63, HeadlessGraphics::index_pixel(63, 0).unwrap());
+        assert_eq!(64, HeadlessGraphics::index_pixel(0, 1).unwrap());
+        assert_eq!(140, HeadlessGraphics::index_pixel(12, 2).unwrap());
+        assert_eq!(2047, HeadlessGraphics::index_pixel(63, 31).unwrap());
     }
 
     #[test]
@@ -158,17 +171,17 @@ mod tests {
         let mut graphics = HeadlessGraphics::new();
 
         // Should be off to start
-        assert_eq!(false, graphics.get_pixel(6, 1));
+        assert_eq!(Some(false), graphics.get_pixel(6, 1));
         graphics.buffer[70] = true;
 
         // Looking up the pixel by coordinate should be true now
-        assert_eq!(true, graphics.get_pixel(6, 1));
+        assert_eq!(Some(true), graphics.get_pixel(6, 1));
 
         // Flipping the pixel should return true because it was flipped off
         assert_eq!(true, graphics.flip_pixel(6, 1));
 
         // And the underlying pixel should now be false
-        assert_eq!(false, graphics.get_pixel(6, 1));
+        assert_eq!(Some(false), graphics.get_pixel(6, 1));
 
         // Flipping it back on should return false because nothing was turned off
         assert_eq!(false, graphics.flip_pixel(6, 1));
@@ -222,5 +235,21 @@ mod tests {
         assert_eq!(true, graphics.draw(0, 0, &sprite_positive));
         assert_eq!(true, graphics.draw(0, 0, &sprite_negative));
         assert_eq!([false; 2048], graphics.buffer);
+    }
+
+    #[test]
+    fn headless_graphics_out_of_bounds() {
+        // An 8x8 all-black sprite
+        let sprite = [0xFF; 8];
+
+        let mut graphics = HeadlessGraphics::new();
+
+        let flipped = graphics.draw(WIDTH_PX as u8 - 1, HEIGHT_PX as u8 - 1, &sprite);
+        assert_eq!(false, flipped);
+
+        let mut expected = [false; 2048];
+        expected[2047] = true;
+
+        assert_eq!(expected, graphics.buffer);
     }
 }

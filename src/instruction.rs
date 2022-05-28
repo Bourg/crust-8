@@ -75,6 +75,10 @@ pub enum Instruction {
     AddIX {
         register: u8,
     },
+    // FX29
+    StoreSpriteX {
+        register: u8,
+    },
 }
 
 type InstructionBytes = [u8; 2];
@@ -141,9 +145,15 @@ impl Instruction {
                 y_register: right >> 4,
                 bytes: right & 0xF,
             }),
-            0xF => Ok(AddIX {
-                register: left & 0xF,
-            }),
+            0xF => match right {
+                0x1E => Ok(AddIX {
+                    register: left & 0xF,
+                }),
+                0x29 => Ok(StoreSpriteX {
+                    register: left & 0xF,
+                }),
+                _ => Err(String::from("TODO")),
+            },
             _ => Err(format!(
                 "Unsupported instruction {:#06X}",
                 ((left as u16) << 8) + right as u16
@@ -184,6 +194,7 @@ impl Instruction {
                 bytes,
             } => from_u4s(0xD, *x_register, *y_register, *bytes),
             AddIX { register } => from_u4s(0xF, *register, 0x1, 0xE),
+            StoreSpriteX { register } => from_u4s(0xF, *register, 0x2, 0x9),
         }
     }
 
@@ -315,6 +326,7 @@ mod tests {
             },
         ),
         (0xFE1E, AddIX { register: 0xE }),
+        (0xFA29, StoreSpriteX { register: 0xA })
     ];
 
     #[test]

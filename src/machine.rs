@@ -40,8 +40,8 @@ impl<'a> Machine<'a, graphics::HeadlessGraphics> {
 // TODO can I get rid of the lifetime spec, let the machine own its settings
 // Primary machine implementation
 impl<'a, G> Machine<'a, G>
-where
-    G: graphics::Draw,
+    where
+        G: graphics::Draw,
 {
     pub fn new(graphics: G, settings: &'a settings::Settings) -> Machine<'a, G> {
         Machine {
@@ -53,8 +53,8 @@ where
     }
 
     pub fn load_program<T>(&mut self, loader: T)
-    where
-        T: memory::ProgramLoader,
+        where
+            T: memory::ProgramLoader,
     {
         self.ram.load_program(loader);
     }
@@ -140,7 +140,7 @@ where
                 let y = self.registers.get_register(*y_register);
 
                 let sprite_address = self.registers.i;
-                let sprite = self.ram.get_sprite(sprite_address, *bytes);
+                let sprite = self.ram.get_sprite_at_address(sprite_address, *bytes);
 
                 let flipped = self.graphics.draw(x, y, sprite);
 
@@ -151,12 +151,19 @@ where
                 self.registers.i += self.registers.get_register(*register) as u16;
                 self.registers.advance_pc();
             }
+            Instruction::StoreSpriteX { register } => {
+                let value = self.registers.get_register(*register);
+                let address = self.ram.get_address_of_sprite(value);
+                self.registers.i = address;
+
+                self.registers.advance_pc();
+            }
         }
     }
 
     pub fn step_many<'b, T>(&mut self, instructions: T)
-    where
-        T: IntoIterator<Item = &'b Instruction>,
+        where
+            T: IntoIterator<Item=&'b Instruction>,
     {
         instructions
             .into_iter()
@@ -164,15 +171,15 @@ where
     }
 
     fn op<T>(&mut self, target: &u8, source: &u8, op: T)
-    where
-        T: Fn(u8, u8) -> u8,
+        where
+            T: Fn(u8, u8) -> u8,
     {
         self.flagging_op(target, source, |t, s| (op(t, s), FlagSideEffect::NONE))
     }
 
     fn flagging_op<T>(&mut self, target: &u8, source: &u8, op: T)
-    where
-        T: Fn(u8, u8) -> (u8, FlagSideEffect),
+        where
+            T: Fn(u8, u8) -> (u8, FlagSideEffect),
     {
         let source_value = self.registers.get_register(*source);
         let target_value = self.registers.get_register(*target);
@@ -509,7 +516,7 @@ mod tests {
         ];
 
         for (settings, instruction, target_value, source_value, expected_output, expected_flag) in
-            cases
+        cases
         {
             let mut machine = Machine::new_headless_with_settings(settings);
 

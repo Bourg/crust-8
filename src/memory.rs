@@ -84,7 +84,15 @@ impl RAM {
         &self.value[address..address + 2]
     }
 
-    pub fn get_sprite(&self, address: Address, bytes: u8) -> &[u8] {
+    pub fn get_address_of_sprite(&self, value: u8) -> Address {
+        if value > 0xF {
+            panic!("Cannot provide address of sprite with value {:#X}", value);
+        }
+
+        5 * value as u16
+    }
+
+    pub fn get_sprite_at_address(&self, address: Address, bytes: u8) -> &[u8] {
         let address = address as usize;
         let bytes = bytes as usize;
 
@@ -92,8 +100,8 @@ impl RAM {
     }
 
     pub fn load_program<T>(&mut self, loader: T)
-    where
-        T: ProgramLoader,
+        where
+            T: ProgramLoader,
     {
         loader.load_into_ram(self.program_memory_mut())
     }
@@ -150,11 +158,30 @@ mod tests {
         // Loading a blank program should not affect anything
         let original_memory = memory.value.clone();
         memory.load_program(&[] as &[u8]);
-        assert_eq!(&original_memory, &memory.value,);
+        assert_eq!(&original_memory, &memory.value, );
 
         // Load a few instructions
         let program: [u8; 2] = [0x60, 0x50];
         memory.load_program(&program[..]);
         assert_eq!(program, memory.program_memory()[0..2]);
+    }
+
+    #[test]
+    fn sprite_addressing() {
+        let memory = RAM::new();
+
+        for i in 0..0xF {
+            let address = memory.get_address_of_sprite(i);
+            let sprite = memory.get_sprite_at_address(address, 5);
+            assert_eq!(HEX_SPRITES[i as usize], sprite);
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot provide address of sprite with value 0x10")]
+    fn sprite_addressing_invalid() {
+        let memory = RAM::new();
+
+        memory.get_address_of_sprite(0x10);
     }
 }

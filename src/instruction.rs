@@ -205,7 +205,7 @@ impl Instruction {
     }
 }
 
-impl memory::ProgramLoader for &[Instruction] {
+impl memory::ProgramLoader for &Vec<Instruction> {
     fn load_into_ram(&self, ram: &mut [u8]) {
         let bytes: Vec<u8> = self
             .iter()
@@ -326,7 +326,7 @@ mod tests {
             },
         ),
         (0xFE1E, AddIX { register: 0xE }),
-        (0xFA29, StoreSpriteX { register: 0xA })
+        (0xFA29, StoreSpriteX { register: 0xA }),
     ];
 
     #[test]
@@ -352,7 +352,7 @@ mod tests {
     #[test]
     fn load_instructions_as_program() {
         let mut memory = memory::RAM::new();
-        let program = [
+        let program = vec![
             AddXNN {
                 register: 8,
                 value: 0x99,
@@ -362,7 +362,7 @@ mod tests {
                 source: 8,
             },
         ];
-        memory.load_program(&program[..]);
+        memory.load_program(&program);
         assert_eq!(
             [0x78, 0x99, 0x8A, 0x80, 0x00],
             memory.program_memory()[0..5]

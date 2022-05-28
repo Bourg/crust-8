@@ -5,7 +5,7 @@ use std::thread;
 
 fn main() {
     // TODO load the program from disk
-    let program = test_programs::default_sprites::PROGRAM;
+    let program = test_programs::default_sprites::get();
 
     // Create two handles to the graphics implementation
     let window_graphics = graphics::PistonGraphics::new();
@@ -19,7 +19,7 @@ fn main() {
             },
         );
 
-        machine.load_program(program);
+        machine.load_program(&program);
 
         let completion_message = match machine.run() {
             Ok(()) => String::from("Machine completed successfully"),

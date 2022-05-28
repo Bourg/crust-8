@@ -100,8 +100,8 @@ impl RAM {
     }
 
     pub fn load_program<T>(&mut self, loader: T)
-        where
-            T: ProgramLoader,
+    where
+        T: ProgramLoader,
     {
         loader.load_into_ram(self.program_memory_mut())
     }
@@ -158,7 +158,7 @@ mod tests {
         // Loading a blank program should not affect anything
         let original_memory = memory.value.clone();
         memory.load_program(&[] as &[u8]);
-        assert_eq!(&original_memory, &memory.value, );
+        assert_eq!(&original_memory, &memory.value,);
 
         // Load a few instructions
         let program: [u8; 2] = [0x60, 0x50];

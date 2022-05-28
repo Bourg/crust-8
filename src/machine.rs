@@ -17,6 +17,8 @@ enum FlagSideEffect {
     SET(bool),
 }
 
+type RunResult = Result<(), Box<dyn error::Error>>;
+
 // Convenience constructors for common headless graphics cases
 impl<'a> Machine<'a, graphics::HeadlessGraphics> {
     pub fn new_headless() -> Machine<'a, graphics::HeadlessGraphics> {
@@ -40,8 +42,8 @@ impl<'a> Machine<'a, graphics::HeadlessGraphics> {
 // TODO can I get rid of the lifetime spec, let the machine own its settings
 // Primary machine implementation
 impl<'a, G> Machine<'a, G>
-    where
-        G: graphics::Draw,
+where
+    G: graphics::Draw,
 {
     pub fn new(graphics: G, settings: &'a settings::Settings) -> Machine<'a, G> {
         Machine {
@@ -52,14 +54,23 @@ impl<'a, G> Machine<'a, G>
         }
     }
 
+    pub fn load_program_and_run<T>(&mut self, loader: T) -> RunResult
+    where
+        T: memory::ProgramLoader,
+    {
+        self.load_program(loader);
+
+        self.run()
+    }
+
     pub fn load_program<T>(&mut self, loader: T)
-        where
-            T: memory::ProgramLoader,
+    where
+        T: memory::ProgramLoader,
     {
         self.ram.load_program(loader);
     }
 
-    pub fn run(&mut self) -> Result<(), Box<dyn error::Error>> {
+    pub fn run(&mut self) -> RunResult {
         loop {
             let instruction_bytes = self.ram.get_instruction(self.registers.pc);
             let instruction = Instruction::from_bytes(instruction_bytes)?;
@@ -161,25 +172,16 @@ impl<'a, G> Machine<'a, G>
         }
     }
 
-    pub fn step_many<'b, T>(&mut self, instructions: T)
-        where
-            T: IntoIterator<Item=&'b Instruction>,
-    {
-        instructions
-            .into_iter()
-            .for_each(|instruction| self.step(instruction))
-    }
-
     fn op<T>(&mut self, target: &u8, source: &u8, op: T)
-        where
-            T: Fn(u8, u8) -> u8,
+    where
+        T: Fn(u8, u8) -> u8,
     {
         self.flagging_op(target, source, |t, s| (op(t, s), FlagSideEffect::NONE))
     }
 
     fn flagging_op<T>(&mut self, target: &u8, source: &u8, op: T)
-        where
-            T: Fn(u8, u8) -> (u8, FlagSideEffect),
+    where
+        T: Fn(u8, u8) -> (u8, FlagSideEffect),
     {
         let source_value = self.registers.get_register(*source);
         let target_value = self.registers.get_register(*target);
@@ -213,7 +215,7 @@ mod tests {
         assert_eq!(0x200, machine.registers.pc);
 
         // Load a simple program that does some math
-        machine.load_program(&[
+        machine.load_program(&vec![
             StoreXNN {
                 register: 0,
                 value: 24,
@@ -250,7 +252,7 @@ mod tests {
                 target: 3,
                 source: 0,
             },
-        ] as &[Instruction]);
+        ]);
 
         assert!(machine.run().is_err());
         assert_eq!(0x212, machine.registers.pc);
@@ -261,24 +263,29 @@ mod tests {
     fn store_xnn() {
         let mut machine = Machine::new_headless();
 
-        machine.step_many(&[
-            StoreXNN {
-                register: 0x7,
-                value: 77,
-            },
-            StoreXNN {
-                register: 0x5,
-                value: 22,
-            },
-            StoreXNN {
-                register: 0xF,
-                value: 123,
-            },
-            StoreXNN {
-                register: 0x5,
-                value: 23,
-            },
-        ]);
+        let error = machine
+            .load_program_and_run(&vec![
+                StoreXNN {
+                    register: 0x7,
+                    value: 77,
+                },
+                StoreXNN {
+                    register: 0x5,
+                    value: 22,
+                },
+                StoreXNN {
+                    register: 0xF,
+                    value: 123,
+                },
+                StoreXNN {
+                    register: 0x5,
+                    value: 23,
+                },
+            ])
+            .is_err();
+        assert!(error);
+        // TODO this is a useless way to use the error
+        // TODO determine how a program can end successfully
 
         assert_eq!(
             [0, 0, 0, 0, 0, 23, 0, 77, 0, 0, 0, 0, 0, 0, 0, 123],
@@ -290,16 +297,19 @@ mod tests {
     fn store_xy() {
         let mut machine = Machine::new_headless();
 
-        machine.step_many([
-            &StoreXNN {
-                register: 0x5,
-                value: 90,
-            },
-            &StoreXY {
-                target: 0xE,
-                source: 0x5,
-            },
-        ]);
+        let error = machine
+            .load_program_and_run(&vec![
+                StoreXNN {
+                    register: 0x5,
+                    value: 90,
+                },
+                StoreXY {
+                    target: 0xE,
+                    source: 0x5,
+                },
+            ])
+            .is_err();
+        assert!(error);
 
         assert_eq!(
             [0, 0, 0, 0, 0, 90, 0, 0, 0, 0, 0, 0, 0, 0, 90, 0],
@@ -354,36 +364,37 @@ mod tests {
         machine.registers.set_flag(0xEE);
 
         // Add two numbers
-        machine.step_many([
-            &StoreXNN {
-                register: 0x0,
-                value: 23,
-            },
-            &StoreXNN {
-                register: 0x1,
-                value: 45,
-            },
-            &AddXY {
-                target: 0x0,
-                source: 0x1,
-            },
-        ]);
+        let error = machine
+            .load_program_and_run(&vec![
+                StoreXNN {
+                    register: 0x0,
+                    value: 23,
+                },
+                StoreXNN {
+                    register: 0x1,
+                    value: 45,
+                },
+                AddXY {
+                    target: 0x0,
+                    source: 0x1,
+                },
+            ])
+            .is_err();
+        assert!(error);
 
         // The registers should have been set and the flag set to 0
         assert_eq!([68, 45], machine.registers.v[0..2]);
         assert_eq!(0x0, machine.registers.get_flag());
 
         // Make a few more additions and overflow will occur
-        machine.step_many([
-            &AddXY {
-                target: 0x0,
-                source: 0x0,
-            },
-            &AddXY {
-                target: 0x0,
-                source: 0x0,
-            },
-        ]);
+        machine.step(&AddXY {
+            target: 0x0,
+            source: 0x0,
+        });
+        machine.step(&AddXY {
+            target: 0x0,
+            source: 0x0,
+        });
 
         assert_eq!([16, 45], machine.registers.v[0..2]);
         assert_eq!(0x1, machine.registers.get_flag());
@@ -419,38 +430,45 @@ mod tests {
         let mut machine = Machine::new_headless();
 
         // No borrow
-        machine.step_many([
-            &StoreXNN {
-                register: 0xA,
-                value: 0x2D,
-            },
-            &StoreXNN {
-                register: 0xB,
-                value: 0x4B,
-            },
-            &SUBXYReverse {
-                target: 0xA,
-                source: 0xB,
-            },
-        ]);
+        let error = machine
+            .load_program_and_run(&vec![
+                StoreXNN {
+                    register: 0xA,
+                    value: 0x2D,
+                },
+                StoreXNN {
+                    register: 0xB,
+                    value: 0x4B,
+                },
+                SUBXYReverse {
+                    target: 0xA,
+                    source: 0xB,
+                },
+            ])
+            .is_err();
+        assert!(error);
         assert_eq!([0x1E, 0x4B], machine.registers.v[0xA..=0xB]);
         assert_eq!(0x1, machine.registers.get_flag());
 
         // With carry
-        machine.step_many([
-            &StoreXNN {
-                register: 0xC,
-                value: 0x4B,
-            },
-            &StoreXNN {
-                register: 0xD,
-                value: 0x2D,
-            },
-            &SUBXYReverse {
-                target: 0xC,
-                source: 0xD,
-            },
-        ]);
+        let mut machine = Machine::new_headless();
+        let error = machine
+            .load_program_and_run(&vec![
+                StoreXNN {
+                    register: 0xC,
+                    value: 0x4B,
+                },
+                StoreXNN {
+                    register: 0xD,
+                    value: 0x2D,
+                },
+                SUBXYReverse {
+                    target: 0xC,
+                    source: 0xD,
+                },
+            ])
+            .is_err();
+        assert!(error);
 
         assert_eq!([0xE2, 0x2D], machine.registers.v[0xC..=0xD]);
         assert_eq!(0x0, machine.registers.get_flag());
@@ -516,7 +534,7 @@ mod tests {
         ];
 
         for (settings, instruction, target_value, source_value, expected_output, expected_flag) in
-        cases
+            cases
         {
             let mut machine = Machine::new_headless_with_settings(settings);
 
@@ -547,16 +565,37 @@ mod tests {
     fn add_ix() {
         let mut machine = Machine::new_headless();
 
-        machine.step_many([
-            &StoreNNN { value: 0xCDE },
-            &StoreXNN {
-                register: 7,
-                value: 0x11,
-            },
-            &AddIX { register: 7 },
-        ]);
+        let error = machine
+            .load_program_and_run(&vec![
+                StoreNNN { value: 0xCDE },
+                StoreXNN {
+                    register: 7,
+                    value: 0x11,
+                },
+                AddIX { register: 7 },
+            ])
+            .is_err();
+        assert!(error);
 
         assert_eq!(0xCEF, machine.registers.i);
+    }
+
+    #[test]
+    fn store_sprite_x() {
+        let mut machine = Machine::new_headless();
+
+        let error = machine
+            .load_program_and_run(&vec![
+                StoreXNN {
+                    register: 0xE,
+                    value: 0xA,
+                },
+                StoreSpriteX { register: 0xE },
+            ])
+            .is_err();
+        assert!(error);
+
+        assert_eq!(5 * 0xA, machine.registers.i);
     }
 
     // TODO graphics integration test

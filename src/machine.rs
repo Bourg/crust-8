@@ -11,7 +11,6 @@ pub struct Machine<G: graphics::Draw> {
     pub settings: settings::Settings,
 }
 
-// TODO where to put this
 enum FlagSideEffect {
     NONE,
     SET(bool),
@@ -19,28 +18,6 @@ enum FlagSideEffect {
 
 type RunResult = Result<(), Box<dyn error::Error>>;
 
-// Convenience constructors for common headless graphics cases
-impl Machine<graphics::HeadlessGraphics> {
-    pub fn new_headless() -> Machine<graphics::HeadlessGraphics> {
-        Machine::new_headless_with_settings(settings::Settings {
-            bit_shift_mode: settings::BitShiftMode::OneRegister,
-        })
-    }
-
-    pub fn new_headless_with_settings(
-        settings: settings::Settings,
-    ) -> Machine<graphics::HeadlessGraphics> {
-        Machine {
-            ram: memory::RAM::new(),
-            registers: register::Registers::new(),
-            graphics: graphics::HeadlessGraphics::new(),
-            settings,
-        }
-    }
-}
-
-// TODO can I get rid of the lifetime spec, let the machine own its settings
-// Primary machine implementation
 impl<G> Machine<G>
 where
     G: graphics::Draw,
@@ -54,15 +31,6 @@ where
         }
     }
 
-    pub fn load_program_and_run<T>(&mut self, loader: T) -> RunResult
-    where
-        T: memory::ProgramLoader,
-    {
-        self.load_program(loader);
-
-        self.run()
-    }
-
     pub fn load_program<T>(&mut self, loader: T)
     where
         T: memory::ProgramLoader,
@@ -70,15 +38,20 @@ where
         self.ram.load_program(loader);
     }
 
-    pub fn run(&mut self) -> RunResult {
+    pub fn run_program(&mut self) -> RunResult {
         loop {
-            let instruction_bytes = self.ram.get_instruction(self.registers.pc);
-            let instruction = Instruction::from_bytes(instruction_bytes)?;
-            self.step(&instruction);
+            self.step_program()?;
         }
     }
 
-    pub fn step(&mut self, instruction: &Instruction) {
+    fn step_program(&mut self) -> RunResult {
+        let instruction_bytes = self.ram.get_instruction(self.registers.pc);
+        let instruction = Instruction::from_bytes(instruction_bytes)?;
+        self.step(&instruction);
+        Ok(())
+    }
+
+    fn step(&mut self, instruction: &Instruction) {
         let bit_shift_mode = self.settings.bit_shift_mode;
 
         match instruction {
@@ -225,13 +198,45 @@ mod tests {
     use crate::instruction::Instruction::*;
     use crate::settings::BitShiftMode;
 
+    // Convenience constructors for test machines
+    impl Machine<graphics::HeadlessGraphics> {
+        pub fn new_headless() -> Machine<graphics::HeadlessGraphics> {
+            Machine::new_headless_with_settings(settings::Settings {
+                bit_shift_mode: settings::BitShiftMode::OneRegister,
+            })
+        }
+
+        pub fn new_headless_with_settings(
+            settings: settings::Settings,
+        ) -> Machine<graphics::HeadlessGraphics> {
+            Machine {
+                ram: memory::RAM::new(),
+                registers: register::Registers::new(),
+                graphics: graphics::HeadlessGraphics::new(),
+                settings,
+            }
+        }
+
+        pub fn test_program_linear(&mut self, program: &Vec<Instruction>) -> RunResult {
+            self.load_program(program);
+
+            // Typical Chip8 programs run forever and there is no exit instruction
+            // For testing, run with a gas counter
+            for _ in 0..program.len() {
+                self.step_program()?;
+            }
+
+            Ok(())
+        }
+    }
+
     #[test]
     fn run() {
         let mut machine = Machine::new_headless();
 
         // Load the machine with an empty program and run - should stop immediately
         machine.load_program(&[] as &[u8]);
-        let result = machine.run();
+        let result = machine.run_program();
         assert!(result.is_err());
         assert_eq!(0x200, machine.registers.pc);
 
@@ -275,7 +280,7 @@ mod tests {
             },
         ]);
 
-        assert!(machine.run().is_err());
+        assert!(machine.run_program().is_err());
         assert_eq!(0x212, machine.registers.pc);
         assert_eq!([24, 26, 60, 216], machine.registers.v[0..4]);
     }
@@ -284,8 +289,8 @@ mod tests {
     fn store_xnn() {
         let mut machine = Machine::new_headless();
 
-        let error = machine
-            .load_program_and_run(&vec![
+        machine
+            .test_program_linear(&vec![
                 StoreXNN {
                     register: 0x7,
                     value: 77,
@@ -303,10 +308,7 @@ mod tests {
                     value: 23,
                 },
             ])
-            .is_err();
-        assert!(error);
-        // TODO this is a useless way to use the error
-        // TODO determine how a program can end successfully
+            .unwrap();
 
         assert_eq!(
             [0, 0, 0, 0, 0, 23, 0, 77, 0, 0, 0, 0, 0, 0, 0, 123],
@@ -318,8 +320,8 @@ mod tests {
     fn store_xy() {
         let mut machine = Machine::new_headless();
 
-        let error = machine
-            .load_program_and_run(&vec![
+        machine
+            .test_program_linear(&vec![
                 StoreXNN {
                     register: 0x5,
                     value: 90,
@@ -329,8 +331,7 @@ mod tests {
                     source: 0x5,
                 },
             ])
-            .is_err();
-        assert!(error);
+            .unwrap();
 
         assert_eq!(
             [0, 0, 0, 0, 0, 90, 0, 0, 0, 0, 0, 0, 0, 0, 90, 0],
@@ -385,8 +386,8 @@ mod tests {
         machine.registers.set_flag(0xEE);
 
         // Add two numbers
-        let error = machine
-            .load_program_and_run(&vec![
+        machine
+            .test_program_linear(&vec![
                 StoreXNN {
                     register: 0x0,
                     value: 23,
@@ -400,8 +401,7 @@ mod tests {
                     source: 0x1,
                 },
             ])
-            .is_err();
-        assert!(error);
+            .unwrap();
 
         // The registers should have been set and the flag set to 0
         assert_eq!([68, 45], machine.registers.v[0..2]);
@@ -451,8 +451,8 @@ mod tests {
         let mut machine = Machine::new_headless();
 
         // No borrow
-        let error = machine
-            .load_program_and_run(&vec![
+        machine
+            .test_program_linear(&vec![
                 StoreXNN {
                     register: 0xA,
                     value: 0x2D,
@@ -466,15 +466,14 @@ mod tests {
                     source: 0xB,
                 },
             ])
-            .is_err();
-        assert!(error);
+            .unwrap();
         assert_eq!([0x1E, 0x4B], machine.registers.v[0xA..=0xB]);
         assert_eq!(0x1, machine.registers.get_flag());
 
         // With carry
         let mut machine = Machine::new_headless();
-        let error = machine
-            .load_program_and_run(&vec![
+        machine
+            .test_program_linear(&vec![
                 StoreXNN {
                     register: 0xC,
                     value: 0x4B,
@@ -488,8 +487,7 @@ mod tests {
                     source: 0xD,
                 },
             ])
-            .is_err();
-        assert!(error);
+            .unwrap();
 
         assert_eq!([0xE2, 0x2D], machine.registers.v[0xC..=0xD]);
         assert_eq!(0x0, machine.registers.get_flag());
@@ -586,8 +584,8 @@ mod tests {
     fn add_ix() {
         let mut machine = Machine::new_headless();
 
-        let error = machine
-            .load_program_and_run(&vec![
+        machine
+            .test_program_linear(&vec![
                 StoreNNN { value: 0xCDE },
                 StoreXNN {
                     register: 7,
@@ -595,8 +593,7 @@ mod tests {
                 },
                 AddIX { register: 7 },
             ])
-            .is_err();
-        assert!(error);
+            .unwrap();
 
         assert_eq!(0xCEF, machine.registers.i);
     }
@@ -605,16 +602,15 @@ mod tests {
     fn store_sprite_x() {
         let mut machine = Machine::new_headless();
 
-        let error = machine
-            .load_program_and_run(&vec![
+        machine
+            .test_program_linear(&vec![
                 StoreXNN {
                     register: 0xE,
                     value: 0xA,
                 },
                 StoreSpriteX { register: 0xE },
             ])
-            .is_err();
-        assert!(error);
+            .unwrap();
 
         assert_eq!(5 * 0xA, machine.registers.i);
     }
@@ -624,8 +620,8 @@ mod tests {
         let mut machine = Machine::new_headless();
         let address = 0x222;
 
-        let error = machine
-            .load_program_and_run(&vec![
+        machine
+            .test_program_linear(&vec![
                 StoreNNN { value: address },
                 StoreXNN {
                     register: 8,
@@ -633,8 +629,7 @@ mod tests {
                 },
                 StoreDecimal { register: 8 },
             ])
-            .is_err();
-        assert!(error);
+            .unwrap();
 
         let loaded_memory = &machine.ram.address(address)[0..3];
         assert_eq!([1, 5, 9], loaded_memory);

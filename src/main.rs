@@ -21,7 +21,7 @@ fn main() {
 
         machine.load_program(&program);
 
-        let completion_message = match machine.run() {
+        let completion_message = match machine.run_program() {
             Ok(()) => String::from("Machine completed successfully"),
             Err(e) => format!("Machine completed exceptionally: {:?}", e),
         };

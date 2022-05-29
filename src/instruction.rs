@@ -334,6 +334,7 @@ mod tests {
         ),
         (0xFE1E, AddIX { register: 0xE }),
         (0xFA29, StoreSpriteX { register: 0xA }),
+        (0xFB33, StoreDecimal { register: 0xB }),
     ];
 
     #[test]

@@ -1,13 +1,14 @@
-use crate::graphics;
 use crate::instruction::Instruction;
 use crate::register;
+use crate::{graphics, random};
 use crate::{memory, settings};
 use std::error;
 
-pub struct Machine<G: graphics::Draw> {
+pub struct Machine<G: graphics::Draw, R: random::RandomSource> {
     pub ram: memory::RAM,
     pub registers: register::Registers,
     pub graphics: G,
+    pub random: R,
     pub settings: settings::Settings,
 }
 
@@ -18,15 +19,17 @@ enum FlagSideEffect {
 
 type RunResult = Result<(), Box<dyn error::Error>>;
 
-impl<G> Machine<G>
+impl<G, R> Machine<G, R>
 where
     G: graphics::Draw,
+    R: random::RandomSource,
 {
-    pub fn new(graphics: G, settings: settings::Settings) -> Machine<G> {
+    pub fn new(graphics: G, random: R, settings: settings::Settings) -> Machine<G, R> {
         Machine {
             ram: memory::RAM::new(),
             registers: register::Registers::new(),
             graphics,
+            random,
             settings,
         }
     }
@@ -115,6 +118,14 @@ where
                 self.registers.i = *value;
                 self.registers.advance_pc();
             }
+            Instruction::Rand { register, mask } => {
+                let random_number = self.random.gen();
+                let random_number = random_number & mask;
+
+                self.registers.set_register(*register, random_number);
+
+                self.registers.advance_pc();
+            }
             Instruction::DrawXYN {
                 x_register,
                 y_register,
@@ -199,20 +210,25 @@ mod tests {
     use crate::settings::BitShiftMode;
 
     // Convenience constructors for test machines
-    impl Machine<graphics::HeadlessGraphics> {
-        pub fn new_headless() -> Machine<graphics::HeadlessGraphics> {
-            Machine::new_headless_with_settings(settings::Settings {
-                bit_shift_mode: settings::BitShiftMode::OneRegister,
-            })
+    impl Machine<graphics::HeadlessGraphics, random::FixedRandomSource> {
+        pub fn new_headless() -> Machine<graphics::HeadlessGraphics, random::FixedRandomSource> {
+            Machine::new_headless_with_settings(
+                random::FixedRandomSource::new(vec![0]),
+                settings::Settings {
+                    bit_shift_mode: settings::BitShiftMode::OneRegister,
+                },
+            )
         }
 
         pub fn new_headless_with_settings(
+            random: random::FixedRandomSource,
             settings: settings::Settings,
-        ) -> Machine<graphics::HeadlessGraphics> {
+        ) -> Machine<graphics::HeadlessGraphics, random::FixedRandomSource> {
             Machine {
                 ram: memory::RAM::new(),
                 registers: register::Registers::new(),
                 graphics: graphics::HeadlessGraphics::new(),
+                random,
                 settings,
             }
         }
@@ -555,7 +571,10 @@ mod tests {
         for (settings, instruction, target_value, source_value, expected_output, expected_flag) in
             cases
         {
-            let mut machine = Machine::new_headless_with_settings(settings.clone());
+            let mut machine = Machine::new_headless_with_settings(
+                random::FixedRandomSource::new(vec![0]),
+                settings.clone(),
+            );
 
             machine.registers.set_flag(0xFF);
             machine.registers.set_register(target, target_value);
@@ -633,6 +652,54 @@ mod tests {
 
         let loaded_memory = &machine.ram.address(address)[0..3];
         assert_eq!([1, 5, 9], loaded_memory);
+    }
+
+    #[test]
+    fn rand() {
+        let random_numbers = vec![0x1, 0xFF, 0xFF, 0xFF, 0b10101010];
+
+        let mut machine = Machine::new_headless_with_settings(
+            random::FixedRandomSource::new(random_numbers.clone()),
+            settings::Settings {
+                bit_shift_mode: BitShiftMode::OneRegister,
+            },
+        );
+
+        machine
+            .test_program_linear(&vec![
+                // 0x1 & 0xFF
+                Rand {
+                    register: 5,
+                    mask: 0xFF,
+                },
+                // 0xFF & 0x00
+                Rand {
+                    register: 6,
+                    mask: 0x00,
+                },
+                // 0xFF & 0xFF
+                Rand {
+                    register: 7,
+                    mask: 0xFF,
+                },
+                // 0xFF & 0x5A
+                Rand {
+                    register: 8,
+                    mask: 0x5A,
+                },
+                // 0b10101010 & 0b11001100
+                Rand {
+                    register: 9,
+                    mask: 0b11001100,
+                },
+            ])
+            .unwrap();
+
+        assert_eq!(0x1, machine.registers.v[5]);
+        assert_eq!(0x0, machine.registers.v[6]);
+        assert_eq!(0xFF, machine.registers.v[7]);
+        assert_eq!(0x5A, machine.registers.v[8]);
+        assert_eq!(0b10001000, machine.registers.v[9]);
     }
 
     #[test]

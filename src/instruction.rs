@@ -64,6 +64,11 @@ pub enum Instruction {
     StoreNNN {
         value: memory::Address,
     },
+    // CXNN
+    Rand {
+        register: u8,
+        mask: u8,
+    },
     // DXYN
     DrawXYN {
         x_register: u8,
@@ -138,6 +143,10 @@ impl Instruction {
 
                 Ok(StoreNNN { value })
             }
+            0xC => Ok(Rand {
+                register: left & 0xF,
+                mask: right,
+            }),
             0xD => Ok(DrawXYN {
                 x_register: left & 0xF,
                 y_register: right >> 4,
@@ -187,6 +196,7 @@ impl Instruction {
                 let value = *value & 0xFFF;
                 from_u16(0xA000 + value)
             }
+            Rand { register, mask } => [u4_to_u8(0xC, *register), *mask],
             DrawXYN {
                 x_register,
                 y_register,
@@ -330,6 +340,13 @@ mod tests {
                 x_register: 7,
                 y_register: 8,
                 bytes: 9,
+            },
+        ),
+        (
+            0xC345,
+            Rand {
+                register: 0x3,
+                mask: 0x45,
             },
         ),
         (0xFE1E, AddIX { register: 0xE }),

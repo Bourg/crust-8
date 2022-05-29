@@ -1,6 +1,6 @@
 mod test_programs;
 
-use crust_8::{graphics, machine, random, settings};
+use crust_8::{graphics, machine, settings};
 use std::thread;
 
 fn main() {
@@ -14,8 +14,7 @@ fn main() {
     thread::spawn(move || {
         let mut machine = machine::Machine::new(
             machine_graphics,
-            // TODO implement a real random source
-            random::FixedRandomSource::new(vec![0]),
+            rand::thread_rng(),
             settings::Settings {
                 bit_shift_mode: settings::BitShiftMode::OneRegister,
             },

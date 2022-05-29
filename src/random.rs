@@ -25,6 +25,15 @@ impl RandomSource for FixedRandomSource {
     }
 }
 
+impl<T> RandomSource for T
+where
+    T: rand::Rng,
+{
+    fn gen(&mut self) -> u8 {
+        rand::Rng::gen(self)
+    }
+}
+
 // TODO need a true random source
 
 #[cfg(test)]

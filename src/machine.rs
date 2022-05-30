@@ -113,6 +113,19 @@ where
                     self.registers.advance_pc();
                 }
             }
+            // TODO this is missing test coverage
+            Instruction::SkipEqXY {
+                register_x,
+                register_y,
+            } => {
+                let value_x = self.registers.get_register(*register_x);
+                let value_y = self.registers.get_register(*register_y);
+
+                self.registers.advance_pc();
+                if value_x == value_y {
+                    self.registers.advance_pc();
+                }
+            }
             Instruction::StoreXNN { register, value } => {
                 self.registers.set_register(*register, *value);
                 self.registers.advance_pc();
@@ -165,6 +178,19 @@ where
                 };
                 (sv << 1, FlagSideEffect::SET(sv & 0x80 != 0))
             }),
+            // TODO this is missing test coverage
+            Instruction::SkipNeXY {
+                register_x,
+                register_y,
+            } => {
+                let value_x = self.registers.get_register(*register_x);
+                let value_y = self.registers.get_register(*register_y);
+
+                self.registers.advance_pc();
+                if value_x != value_y {
+                    self.registers.advance_pc();
+                }
+            }
             Instruction::StoreNNN { value } => {
                 self.registers.i = *value;
                 self.registers.advance_pc();

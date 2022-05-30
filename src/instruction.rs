@@ -23,7 +23,11 @@ pub enum Instruction {
         register: u8,
         value: u8,
     },
-    // TODO 5xy0 - SE Vx, Vy (Flow control, skip if VX == VY)
+    // 5XY0
+    SkipEqXY {
+        register_x: u8,
+        register_y: u8,
+    },
     // 6XNN
     StoreXNN {
         register: u8,
@@ -79,7 +83,11 @@ pub enum Instruction {
         target: u8,
         source: u8,
     },
-    // TODO 9xy0 - SNE Vx, Vy (Flow control, skip if VX != VY)
+    // 9XY0
+    SkipNeXY {
+        register_x: u8,
+        register_y: u8,
+    },
     // ANNN
     StoreNNN {
         value: memory::Address,
@@ -158,6 +166,16 @@ impl Instruction {
                 register: left & 0xF,
                 value: right,
             }),
+            5 => {
+                if right & 0xF == 0x0 {
+                    Ok(SkipEqXY {
+                        register_x: left & 0xF,
+                        register_y: right >> 4,
+                    })
+                } else {
+                    err_unsupported_instruction(left, right)
+                }
+            }
             6 => {
                 let register = left & 0xF;
                 let value = right;
@@ -185,6 +203,16 @@ impl Instruction {
                     7 => Ok(SUBXYReverse { target, source }),
                     0xE => Ok(ShlXY { target, source }),
                     _ => err_unsupported_instruction(left, right),
+                }
+            }
+            9 => {
+                if right & 0xF == 0x0 {
+                    Ok(SkipNeXY {
+                        register_x: left & 0xF,
+                        register_y: right >> 4,
+                    })
+                } else {
+                    err_unsupported_instruction(left, right)
                 }
             }
             0xA => {
@@ -234,6 +262,10 @@ impl Instruction {
             JumpNNN { address } => from_u12(0x1, *address),
             SkipEqXNN { register, value } => [u4_to_u8(0x3, *register), *value],
             SkipNeXNN { register, value } => [u4_to_u8(0x4, *register), *value],
+            SkipEqXY {
+                register_x,
+                register_y,
+            } => [u4_to_u8(0x5, *register_x), u4_to_u8(*register_y, 0)],
             StoreXNN {
                 register,
                 value: amount,
@@ -254,6 +286,10 @@ impl Instruction {
             ShrXY { target, source } => from_u4s(8, *target, *source, 6),
             SUBXYReverse { target, source } => from_u4s(8, *target, *source, 7),
             ShlXY { target, source } => from_u4s(8, *target, *source, 0xE),
+            SkipNeXY {
+                register_x,
+                register_y,
+            } => [u4_to_u8(0x9, *register_x), u4_to_u8(*register_y, 0)],
             StoreNNN { value } => from_u12(0xA, *value),
             JumpV0 { address } => from_u12(0xB, *address),
             Rand { register, mask } => [u4_to_u8(0xC, *register), *mask],
@@ -340,6 +376,13 @@ mod tests {
             },
         ),
         (
+            0x5230,
+            SkipEqXY {
+                register_x: 2,
+                register_y: 3,
+            },
+        ),
+        (
             0x6ABC,
             StoreXNN {
                 register: 0xA,
@@ -414,6 +457,13 @@ mod tests {
             ShlXY {
                 target: 0xA,
                 source: 0xB,
+            },
+        ),
+        (
+            0x9480,
+            SkipNeXY {
+                register_x: 4,
+                register_y: 8,
             },
         ),
         (0xA1F2, StoreNNN { value: 0x1F2 }),

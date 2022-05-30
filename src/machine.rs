@@ -62,6 +62,9 @@ where
                 self.graphics.clear();
                 self.registers.advance_pc();
             }
+            Instruction::Jump { address } => {
+                self.registers.pc = *address;
+            }
             Instruction::StoreXNN { register, value } => {
                 self.registers.set_register(*register, *value);
                 self.registers.advance_pc();
@@ -117,6 +120,10 @@ where
             Instruction::StoreNNN { value } => {
                 self.registers.i = *value;
                 self.registers.advance_pc();
+            }
+            Instruction::JumpV0 { address } => {
+                let offset = self.registers.get_register(0);
+                self.registers.pc = *address + offset as u16;
             }
             Instruction::Rand { register, mask } => {
                 let random_number = self.random.gen();
@@ -253,16 +260,22 @@ mod tests {
             }
         }
 
-        pub fn test_program_linear(&mut self, program: &Vec<Instruction>) -> RunResult {
+        pub fn test_program_with_gas(
+            &mut self,
+            gas: usize,
+            program: &Vec<Instruction>,
+        ) -> RunResult {
             self.load_program(program);
 
-            // Typical Chip8 programs run forever and there is no exit instruction
-            // For testing, run with a gas counter
-            for _ in 0..program.len() {
+            for _ in 0..gas {
                 self.step_program()?;
             }
 
             Ok(())
+        }
+
+        pub fn test_program_linear(&mut self, program: &Vec<Instruction>) -> RunResult {
+            self.test_program_with_gas(program.len(), program)
         }
     }
 
@@ -790,6 +803,76 @@ mod tests {
             [0xA, 0xB, 0xC, 0xD, 0xE],
             machine.ram.address(start_memory)[0..5]
         );
+    }
+
+    #[test]
+    fn jump() {
+        let mut machine = Machine::new_headless();
+
+        machine
+            .test_program_with_gas(
+                3,
+                &vec![
+                    Jump { address: 0x206 },
+                    StoreXNN {
+                        register: 1,
+                        value: 0x1,
+                    },
+                    StoreXNN {
+                        register: 2,
+                        value: 0x2,
+                    },
+                    StoreXNN {
+                        register: 1,
+                        value: 0x3,
+                    },
+                    StoreXNN {
+                        register: 2,
+                        value: 0x4,
+                    },
+                ],
+            )
+            .unwrap();
+
+        assert_eq!([0x3, 0x4], machine.registers.v[1..=2]);
+        assert_eq!(0x20A, machine.registers.pc);
+    }
+
+    #[test]
+    fn jump_v0() {
+        let mut machine = Machine::new_headless();
+
+        machine
+            .test_program_with_gas(
+                4,
+                &vec![
+                    StoreXNN {
+                        register: 0,
+                        value: 0x6,
+                    },
+                    JumpV0 { address: 0x202 },
+                    StoreXNN {
+                        register: 1,
+                        value: 0x1,
+                    },
+                    StoreXNN {
+                        register: 2,
+                        value: 0x2,
+                    },
+                    StoreXNN {
+                        register: 1,
+                        value: 0x3,
+                    },
+                    StoreXNN {
+                        register: 2,
+                        value: 0x4,
+                    },
+                ],
+            )
+            .unwrap();
+
+        assert_eq!([0x3, 0x4], machine.registers.v[1..=2]);
+        assert_eq!(0x20C, machine.registers.pc);
     }
 
     #[test]

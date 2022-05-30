@@ -7,7 +7,10 @@ pub enum Instruction {
     ClearScreen,
     // TODO 00EE - RET (Category: Subroutines)
     // TODO 0nnn - SYS addr (Category: Subroutines)
-    // TODO 1nnn - JP addr (Flow control, jump to address nnn)
+    // 1NNN,
+    Jump {
+        address: memory::Address,
+    },
     // TODO 2nnn - CALL addr (Category: Subroutines)
     // TODO 3xkk - SE Vx, byte (Flow control, skip if VX == NN)
     // TODO 4xkk - SNE Vx, byte (Flow control, skip if VX != NN)
@@ -72,7 +75,10 @@ pub enum Instruction {
     StoreNNN {
         value: memory::Address,
     },
-    // TODO Bnnn - JP V0, addr (Flow control, jump to address nnn + V0)
+    // Bnnn
+    JumpV0 {
+        address: memory::Address,
+    },
     // CXNN
     Rand {
         register: u8,
@@ -132,6 +138,9 @@ impl Instruction {
                     err_unsupported_instruction(left, right)
                 }
             }
+            1 => Ok(Jump {
+                address: (((left & 0xF) as u16) << 8) + right as u16,
+            }),
             6 => {
                 let register = left & 0xF;
                 let value = right;
@@ -167,6 +176,9 @@ impl Instruction {
 
                 Ok(StoreNNN { value })
             }
+            0xB => Ok(JumpV0 {
+                address: (((left & 0xF) as u16) << 8) + right as u16,
+            }),
             0xC => Ok(Rand {
                 register: left & 0xF,
                 mask: right,
@@ -202,6 +214,7 @@ impl Instruction {
     pub fn to_bytes(&self) -> InstructionBytes {
         match self {
             ClearScreen => [0x00, 0xE0],
+            Jump { address } => from_u12(0x1, *address),
             StoreXNN {
                 register,
                 value: amount,
@@ -222,10 +235,8 @@ impl Instruction {
             ShrXY { target, source } => from_u4s(8, *target, *source, 6),
             SUBXYReverse { target, source } => from_u4s(8, *target, *source, 7),
             ShlXY { target, source } => from_u4s(8, *target, *source, 0xE),
-            StoreNNN { value } => {
-                let value = *value & 0xFFF;
-                from_u16(0xA000 + value)
-            }
+            StoreNNN { value } => from_u12(0xA, *value),
+            JumpV0 { address } => from_u12(0xB, *address),
             Rand { register, mask } => [u4_to_u8(0xC, *register), *mask],
             DrawXYN {
                 x_register,
@@ -272,7 +283,10 @@ fn from_u4s(a: u8, b: u8, c: u8, d: u8) -> InstructionBytes {
     [u4_to_u8(a, b), u4_to_u8(c, d)]
 }
 
-fn from_u16(value: u16) -> InstructionBytes {
+fn from_u12(leading_nibble: u8, value: u16) -> InstructionBytes {
+    let prefix = (leading_nibble as u16) << 12;
+    let value = prefix + (value & 0xFFF);
+
     [(value >> 8) as u8, (value & 0xFF) as u8]
 }
 
@@ -289,6 +303,7 @@ mod tests {
 
     static CASES: &[(u16, Instruction)] = &[
         (0x00E0, ClearScreen),
+        (0x1CDC, Jump { address: 0xCDC }),
         (
             0x6ABC,
             StoreXNN {
@@ -367,6 +382,7 @@ mod tests {
             },
         ),
         (0xA1F2, StoreNNN { value: 0x1F2 }),
+        (0xBDCD, JumpV0 { address: 0xDCD }),
         (
             0xD789,
             DrawXYN {
@@ -444,10 +460,9 @@ mod tests {
     }
 
     #[test]
-    fn test_from_u16() {
-        assert_eq!([0, 0], from_u16(0));
-        assert_eq!([0xAB, 0xCD], from_u16(0xABCD));
-        assert_eq!([0, 0], from_u16(0));
+    fn test_from_u12() {
+        assert_eq!([0, 0], from_u12(0, 0));
+        assert_eq!([0xAB, 0xCD], from_u12(0xA, 0xFBCD));
     }
 
     // TODO test cases:

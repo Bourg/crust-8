@@ -5,6 +5,13 @@ use Instruction::*;
 pub enum Instruction {
     // 00E0
     ClearScreen,
+    // TODO 00EE - RET (Category: Subroutines)
+    // TODO 0nnn - SYS addr (Category: Subroutines)
+    // TODO 1nnn - JP addr (Flow control, jump to address nnn)
+    // TODO 2nnn - CALL addr (Category: Subroutines)
+    // TODO 3xkk - SE Vx, byte (Flow control, skip if VX == NN)
+    // TODO 4xkk - SNE Vx, byte (Flow control, skip if VX != NN)
+    // TODO 5xy0 - SE Vx, Vy (Flow control, skip if VX == VY)
     // 6XNN
     StoreXNN {
         register: u8,
@@ -60,10 +67,12 @@ pub enum Instruction {
         target: u8,
         source: u8,
     },
+    // TODO 9xy0 - SNE Vx, Vy (Flow control, skip if VX != VY)
     // ANNN
     StoreNNN {
         value: memory::Address,
     },
+    // TODO Bnnn - JP V0, addr (Flow control, jump to address nnn + V0)
     // CXNN
     Rand {
         register: u8,
@@ -75,6 +84,13 @@ pub enum Instruction {
         y_register: u8,
         bytes: u8,
     },
+    // TODO Ex9E - SKP Vx (Input / flow control, skip if key in VX is pressed)
+    // TODO ExA1 - SKNP Vx (Input / flow control, Skip if key in VX is not pressed)
+
+    // TODO Fx07 - LD Vx, DT (Delay timer, store delay timer in VX)
+    // TODO Fx0A - LD Vx, K (Input, wait for keypress, store in VX)
+    // TODO Fx15 - LD DT, Vx (Delay timer, set delay timer to value of VX)
+    // TODO Fx18 - LD ST, Vx (Sound, set sound timer to value of VX)
     // FX1E
     AddIX {
         register: u8,

@@ -1,11 +1,11 @@
-mod test_programs;
-
 use crust_8::{graphics, machine, settings};
-use std::thread;
+use std::{env, fs, thread};
 
 fn main() {
-    // TODO load the program from disk
-    let program = test_programs::default_sprites::get();
+    // TODO better error handling
+    let args: Vec<String> = env::args().collect();
+    let filename = args.get(1).unwrap();
+    let file = fs::File::open(filename).unwrap();
 
     // Create two handles to the graphics implementation
     let window_graphics = graphics::PistonGraphics::new();
@@ -17,10 +17,12 @@ fn main() {
             rand::thread_rng(),
             settings::Settings {
                 bit_shift_mode: settings::BitShiftMode::OneRegister,
+                on_unrecognized_instruction: settings::OnUnrecognizedInstruction::Skip,
             },
         );
 
-        machine.load_program(&program);
+        // TODO better error handling
+        machine.load_program(file).unwrap();
 
         let completion_message = match machine.run_program() {
             Ok(()) => String::from("Machine completed successfully"),

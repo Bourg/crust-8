@@ -1,7 +1,8 @@
 use crate::memory;
 use Instruction::*;
 
-#[derive(Debug, PartialEq)]
+// TODO can remove Clone here if not for the bad error handling in machine
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Instruction {
     // 00E0
     ClearScreen,
@@ -260,13 +261,15 @@ impl Instruction {
 }
 
 impl memory::ProgramLoader for &Vec<Instruction> {
-    fn load_into_ram(&self, ram: &mut [u8]) {
-        let bytes: Vec<u8> = self
+    type Output = ();
+
+    fn load_into_ram(self, ram: &mut [u8]) {
+        let mut bytes: Vec<u8> = self
             .iter()
             .flat_map(|instruction| instruction.to_bytes().into_iter())
             .collect();
 
-        let bytes_slice: &[u8] = &bytes[..];
+        let bytes_slice = &mut bytes[..];
 
         bytes_slice.load_into_ram(ram);
     }

@@ -1,4 +1,6 @@
 use std::fmt::{Debug, Formatter};
+use std::io::Read;
+use std::{fs, io};
 
 const ADDRESS_INTERPRETER_START: usize = 0x0;
 const ADDRESS_PROGRAM_START: usize = 0x200;
@@ -40,12 +42,29 @@ pub struct RAM {
 }
 
 pub trait ProgramLoader {
-    fn load_into_ram(&self, ram: &mut [u8]);
+    type Output;
+
+    fn load_into_ram(self, ram: &mut [u8]) -> Self::Output;
 }
 
 impl ProgramLoader for &[u8] {
-    fn load_into_ram(&self, ram: &mut [u8]) {
+    type Output = ();
+
+    fn load_into_ram(self, ram: &mut [u8]) {
         ram[..self.len()].copy_from_slice(self)
+    }
+}
+
+impl ProgramLoader for fs::File {
+    type Output = io::Result<usize>;
+
+    fn load_into_ram(mut self, ram: &mut [u8]) -> Self::Output {
+        let mut buf = Vec::new();
+
+        let bytes = self.read_to_end(&mut buf)?;
+        (&mut buf[..]).load_into_ram(ram);
+
+        Ok(bytes)
     }
 }
 
@@ -111,9 +130,9 @@ impl RAM {
         &self.value[address..address + bytes]
     }
 
-    pub fn load_program<T>(&mut self, loader: T)
+    pub fn load_program<T, U>(&mut self, loader: T) -> U
     where
-        T: ProgramLoader,
+        T: ProgramLoader<Output = U>,
     {
         loader.load_into_ram(self.program_memory_mut())
     }

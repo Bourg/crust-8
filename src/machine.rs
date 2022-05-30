@@ -34,11 +34,11 @@ where
         }
     }
 
-    pub fn load_program<T>(&mut self, loader: T)
+    pub fn load_program<T, U>(&mut self, loader: T) -> U
     where
-        T: memory::ProgramLoader,
+        T: memory::ProgramLoader<Output = U>,
     {
-        self.ram.load_program(loader);
+        self.ram.load_program(loader)
     }
 
     pub fn run_program(&mut self) -> RunResult {
@@ -49,9 +49,39 @@ where
 
     fn step_program(&mut self) -> RunResult {
         let instruction_bytes = self.ram.get_instruction(self.registers.pc);
-        let instruction = Instruction::from_bytes(instruction_bytes)?;
-        self.step(&instruction);
-        Ok(())
+        let instruction_u16 = ((instruction_bytes[0] as u16) << 8) + instruction_bytes[1] as u16;
+
+        let instruction = Instruction::from_bytes(instruction_bytes);
+
+        match (
+            instruction.clone(),
+            self.settings.on_unrecognized_instruction,
+        ) {
+            (Ok(instruction), _) => {
+                // TODO remove printing
+                println!(
+                    "Handling instruction {:#06X} at address {:#05X}",
+                    instruction_u16, self.registers.pc
+                );
+                self.step(&instruction);
+                Ok(())
+            }
+            (Err(_), settings::OnUnrecognizedInstruction::Skip) => {
+                // TODO remove printing
+                println!(
+                    "Unrecognized instruction {:#06X} at address {:#05X}",
+                    instruction_u16, self.registers.pc
+                );
+                self.registers.advance_pc();
+                Ok(())
+            }
+            (Err(_), settings::OnUnrecognizedInstruction::Halt) => {
+                // TODO no idea why I have to do this but I can't return String as Error
+                // But for some reason, using ? on the result works
+                instruction?;
+                Ok(())
+            }
+        }
     }
 
     fn step(&mut self, instruction: &Instruction) {
@@ -243,6 +273,7 @@ mod tests {
                 random::FixedRandomSource::new(vec![0]),
                 settings::Settings {
                     bit_shift_mode: settings::BitShiftMode::OneRegister,
+                    on_unrecognized_instruction: settings::OnUnrecognizedInstruction::Halt,
                 },
             )
         }
@@ -582,9 +613,11 @@ mod tests {
 
         let one_register_settings = &settings::Settings {
             bit_shift_mode: BitShiftMode::OneRegister,
+            on_unrecognized_instruction: settings::OnUnrecognizedInstruction::Halt,
         };
         let two_register_settings = &settings::Settings {
             bit_shift_mode: BitShiftMode::TwoRegister,
+            on_unrecognized_instruction: settings::OnUnrecognizedInstruction::Halt,
         };
 
         let shr = &ShrXY { target, source };
@@ -695,6 +728,7 @@ mod tests {
             random::FixedRandomSource::new(random_numbers.clone()),
             settings::Settings {
                 bit_shift_mode: BitShiftMode::OneRegister,
+                on_unrecognized_instruction: settings::OnUnrecognizedInstruction::Halt,
             },
         );
 

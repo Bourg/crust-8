@@ -9,12 +9,20 @@ pub enum Instruction {
     // TODO 00EE - RET (Category: Subroutines)
     // TODO 0nnn - SYS addr (Category: Subroutines)
     // 1NNN,
-    Jump {
+    JumpNNN {
         address: memory::Address,
     },
     // TODO 2nnn - CALL addr (Category: Subroutines)
-    // TODO 3xkk - SE Vx, byte (Flow control, skip if VX == NN)
-    // TODO 4xkk - SNE Vx, byte (Flow control, skip if VX != NN)
+    // 3XNN
+    SkipEqXNN {
+        register: u8,
+        value: u8,
+    },
+    // 4XNN
+    SkipNeXNN {
+        register: u8,
+        value: u8,
+    },
     // TODO 5xy0 - SE Vx, Vy (Flow control, skip if VX == VY)
     // 6XNN
     StoreXNN {
@@ -139,8 +147,16 @@ impl Instruction {
                     err_unsupported_instruction(left, right)
                 }
             }
-            1 => Ok(Jump {
+            1 => Ok(JumpNNN {
                 address: (((left & 0xF) as u16) << 8) + right as u16,
+            }),
+            3 => Ok(SkipEqXNN {
+                register: left & 0xF,
+                value: right,
+            }),
+            4 => Ok(SkipNeXNN {
+                register: left & 0xF,
+                value: right,
             }),
             6 => {
                 let register = left & 0xF;
@@ -215,7 +231,9 @@ impl Instruction {
     pub fn to_bytes(&self) -> InstructionBytes {
         match self {
             ClearScreen => [0x00, 0xE0],
-            Jump { address } => from_u12(0x1, *address),
+            JumpNNN { address } => from_u12(0x1, *address),
+            SkipEqXNN { register, value } => [u4_to_u8(0x3, *register), *value],
+            SkipNeXNN { register, value } => [u4_to_u8(0x4, *register), *value],
             StoreXNN {
                 register,
                 value: amount,
@@ -306,7 +324,21 @@ mod tests {
 
     static CASES: &[(u16, Instruction)] = &[
         (0x00E0, ClearScreen),
-        (0x1CDC, Jump { address: 0xCDC }),
+        (0x1CDC, JumpNNN { address: 0xCDC }),
+        (
+            0x3456,
+            SkipEqXNN {
+                register: 0x4,
+                value: 0x56,
+            },
+        ),
+        (
+            0x4567,
+            SkipNeXNN {
+                register: 0x5,
+                value: 0x67,
+            },
+        ),
         (
             0x6ABC,
             StoreXNN {

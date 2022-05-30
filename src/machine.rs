@@ -92,8 +92,26 @@ where
                 self.graphics.clear();
                 self.registers.advance_pc();
             }
-            Instruction::Jump { address } => {
+            Instruction::JumpNNN { address } => {
                 self.registers.pc = *address;
+            }
+            // TODO this is missing test coverage
+            Instruction::SkipEqXNN { register, value } => {
+                let register_value = self.registers.get_register(*register);
+
+                self.registers.advance_pc();
+                if register_value == *value {
+                    self.registers.advance_pc();
+                }
+            }
+            // TODO this is missing test coverage
+            Instruction::SkipNeXNN { register, value } => {
+                let register_value = self.registers.get_register(*register);
+
+                self.registers.advance_pc();
+                if register_value != *value {
+                    self.registers.advance_pc();
+                }
             }
             Instruction::StoreXNN { register, value } => {
                 self.registers.set_register(*register, *value);
@@ -847,7 +865,7 @@ mod tests {
             .test_program_with_gas(
                 3,
                 &vec![
-                    Jump { address: 0x206 },
+                    JumpNNN { address: 0x206 },
                     StoreXNN {
                         register: 1,
                         value: 0x1,

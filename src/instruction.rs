@@ -87,6 +87,14 @@ pub enum Instruction {
     StoreDecimal {
         register: u8,
     },
+    // FX55
+    WriteToMemory {
+        max_register: u8,
+    },
+    // FX65
+    ReadFromMemory {
+        max_register: u8,
+    },
 }
 
 type InstructionBytes = [u8; 2];
@@ -159,6 +167,12 @@ impl Instruction {
                     0x1E => Ok(AddIX { register }),
                     0x29 => Ok(StoreSpriteX { register }),
                     0x33 => Ok(StoreDecimal { register }),
+                    0x55 => Ok(WriteToMemory {
+                        max_register: left & 0xF,
+                    }),
+                    0x65 => Ok(ReadFromMemory {
+                        max_register: left & 0xF,
+                    }),
                     _ => err_unsupported_instruction(left, right),
                 }
             }
@@ -205,6 +219,9 @@ impl Instruction {
             AddIX { register } => from_u4s(0xF, *register, 0x1, 0xE),
             StoreSpriteX { register } => from_u4s(0xF, *register, 0x2, 0x9),
             StoreDecimal { register } => from_u4s(0xF, *register, 0x3, 0x3),
+            // TODO find the canonical names for these instructions, names are getting twisted
+            WriteToMemory { max_register } => from_u4s(0xF, *max_register, 0x5, 0x5),
+            ReadFromMemory { max_register } => from_u4s(0xF, *max_register, 0x6, 0x5),
         }
     }
 
@@ -352,6 +369,8 @@ mod tests {
         (0xFE1E, AddIX { register: 0xE }),
         (0xFA29, StoreSpriteX { register: 0xA }),
         (0xFB33, StoreDecimal { register: 0xB }),
+        (0xF055, WriteToMemory { max_register: 0x0 }),
+        (0xFE65, ReadFromMemory { max_register: 0xE }),
     ];
 
     #[test]

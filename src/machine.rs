@@ -166,6 +166,26 @@ where
 
                 self.registers.advance_pc();
             }
+            Instruction::WriteToMemory { max_register } => {
+                let address = &mut self.registers.i;
+                let target_memory = &mut self.ram.address_mut(*address)[0..=*max_register as usize];
+                let source_registers = &self.registers.v[0..=*max_register as usize];
+
+                target_memory.copy_from_slice(source_registers);
+                *address += *max_register as u16 + 1;
+
+                self.registers.advance_pc();
+            }
+            Instruction::ReadFromMemory { max_register } => {
+                let address = &mut self.registers.i;
+                let source_memory = &self.ram.address(*address)[0..=*max_register as usize];
+                let target_registers = &mut self.registers.v[0..=*max_register as usize];
+
+                target_registers.copy_from_slice(source_memory);
+                *address += *max_register as u16 + 1;
+
+                self.registers.advance_pc();
+            }
         }
     }
 
@@ -700,6 +720,76 @@ mod tests {
         assert_eq!(0xFF, machine.registers.v[7]);
         assert_eq!(0x5A, machine.registers.v[8]);
         assert_eq!(0b10001000, machine.registers.v[9]);
+    }
+
+    #[test]
+    fn test_read_from_memory() {
+        let start_memory = 0xEE0;
+
+        let mut machine = Machine::new_headless();
+
+        let memory = machine.ram.address_mut(start_memory);
+        memory[0..5].copy_from_slice(&[1, 3, 5, 7, 9]);
+
+        let program = vec![
+            StoreNNN {
+                value: start_memory,
+            },
+            StoreXNN {
+                register: 5,
+                value: 0x23,
+            },
+            ReadFromMemory { max_register: 5 },
+        ];
+
+        machine.test_program_linear(&program).unwrap();
+
+        assert_eq!(0xEE6, machine.registers.i);
+        assert_eq!([1, 3, 5, 7, 9, 0], machine.registers.v[0..=5]);
+        assert_eq!([1, 3, 5, 7, 9], machine.ram.address(start_memory)[0..5]);
+    }
+
+    #[test]
+    fn test_write_to_memory() {
+        let start_memory = 0xABC;
+
+        let program = vec![
+            // Store a bunch of values in registers
+            StoreXNN {
+                register: 0,
+                value: 0xA,
+            },
+            StoreXNN {
+                register: 1,
+                value: 0xB,
+            },
+            StoreXNN {
+                register: 2,
+                value: 0xC,
+            },
+            StoreXNN {
+                register: 3,
+                value: 0xD,
+            },
+            StoreXNN {
+                register: 4,
+                value: 0xE,
+            },
+            // Persist to memory
+            StoreNNN {
+                value: start_memory,
+            },
+            WriteToMemory { max_register: 4 },
+        ];
+
+        let mut machine = Machine::new_headless();
+        machine.test_program_linear(&program).unwrap();
+
+        assert_eq!(0xAC1, machine.registers.i);
+        assert_eq!(
+            [0xA, 0xB, 0xC, 0xD, 0xE],
+            machine.ram.address(start_memory)[0..5]
+        );
     }
 
     #[test]

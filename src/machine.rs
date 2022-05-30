@@ -2,9 +2,11 @@ use crate::instruction::Instruction;
 use crate::register;
 use crate::{graphics, random};
 use crate::{memory, settings};
-use std::error;
+use std::{error, thread};
+use std::time;
 
 pub struct Machine<G: graphics::Draw, R: random::RandomSource> {
+    pub clock_speed: Option<time::Duration>,
     pub ram: memory::RAM,
     pub registers: register::Registers,
     pub graphics: G,
@@ -20,12 +22,13 @@ enum FlagSideEffect {
 type RunResult = Result<(), Box<dyn error::Error>>;
 
 impl<G, R> Machine<G, R>
-where
-    G: graphics::Draw,
-    R: random::RandomSource,
+    where
+        G: graphics::Draw,
+        R: random::RandomSource,
 {
-    pub fn new(graphics: G, random: R, settings: settings::Settings) -> Machine<G, R> {
+    pub fn new(clock_speed: Option<time::Duration>, graphics: G, random: R, settings: settings::Settings) -> Machine<G, R> {
         Machine {
+            clock_speed,
             ram: memory::RAM::new(),
             registers: register::Registers::new(),
             graphics,
@@ -35,8 +38,8 @@ where
     }
 
     pub fn load_program<T, U>(&mut self, loader: T) -> U
-    where
-        T: memory::ProgramLoader<Output = U>,
+        where
+            T: memory::ProgramLoader<Output=U>,
     {
         self.ram.load_program(loader)
     }
@@ -52,6 +55,12 @@ where
         let instruction_u16 = ((instruction_bytes[0] as u16) << 8) + instruction_bytes[1] as u16;
 
         let instruction = Instruction::from_bytes(instruction_bytes);
+
+        // TODO better place to apply clock speed?
+        // TODO account for the actual amount of time the instruction took?
+        if let Some(clock_speed) = self.clock_speed {
+            thread::sleep(clock_speed);
+        }
 
         match (
             instruction.clone(),
@@ -271,15 +280,15 @@ where
     }
 
     fn op<T>(&mut self, target: &u8, source: &u8, op: T)
-    where
-        T: Fn(u8, u8) -> u8,
+        where
+            T: Fn(u8, u8) -> u8,
     {
         self.flagging_op(target, source, |t, s| (op(t, s), FlagSideEffect::NONE))
     }
 
     fn flagging_op<T>(&mut self, target: &u8, source: &u8, op: T)
-    where
-        T: Fn(u8, u8) -> (u8, FlagSideEffect),
+        where
+            T: Fn(u8, u8) -> (u8, FlagSideEffect),
     {
         let source_value = self.registers.get_register(*source);
         let target_value = self.registers.get_register(*target);
@@ -327,6 +336,7 @@ mod tests {
             settings: settings::Settings,
         ) -> Machine<graphics::HeadlessGraphics, random::FixedRandomSource> {
             Machine {
+                clock_speed: None,
                 ram: memory::RAM::new(),
                 registers: register::Registers::new(),
                 graphics: graphics::HeadlessGraphics::new(),
@@ -679,7 +689,7 @@ mod tests {
         ];
 
         for (settings, instruction, target_value, source_value, expected_output, expected_flag) in
-            cases
+        cases
         {
             let mut machine = Machine::new_headless_with_settings(
                 random::FixedRandomSource::new(vec![0]),

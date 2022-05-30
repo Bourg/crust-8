@@ -1,5 +1,5 @@
 use crust_8::{graphics, machine, settings};
-use std::{env, fs, thread};
+use std::{env, fs, thread, time};
 
 fn main() {
     // TODO better error handling
@@ -13,6 +13,9 @@ fn main() {
 
     thread::spawn(move || {
         let mut machine = machine::Machine::new(
+            // Clock speed is 500Hz, so 2ms/operation
+            //Some(time::Duration::from_millis(2)),
+            Some(time::Duration::from_millis(250)),
             machine_graphics,
             rand::thread_rng(),
             settings::Settings {

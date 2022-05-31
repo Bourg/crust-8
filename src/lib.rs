@@ -5,3 +5,4 @@ pub mod memory;
 pub mod random;
 pub mod register;
 pub mod settings;
+pub mod timer;

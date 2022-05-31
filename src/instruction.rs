@@ -110,9 +110,15 @@ pub enum Instruction {
     // TODO Ex9E - SKP Vx (Input / flow control, skip if key in VX is pressed)
     // TODO ExA1 - SKNP Vx (Input / flow control, Skip if key in VX is not pressed)
 
-    // TODO Fx07 - LD Vx, DT (Delay timer, store delay timer in VX)
+    // FX07
+    StoreDelayInX {
+        register: u8,
+    },
     // TODO Fx0A - LD Vx, K (Input, wait for keypress, store in VX)
-    // TODO Fx15 - LD DT, Vx (Delay timer, set delay timer to value of VX)
+    // FX15
+    SetDelayToX {
+        register: u8,
+    },
     // TODO Fx18 - LD ST, Vx (Sound, set sound timer to value of VX)
     // FX1E
     AddIX {
@@ -237,6 +243,8 @@ impl Instruction {
                 let register = left & 0xF;
 
                 match right {
+                    0x07 => Ok(StoreDelayInX { register }),
+                    0x15 => Ok(SetDelayToX { register }),
                     0x1E => Ok(AddIX { register }),
                     0x29 => Ok(StoreSpriteX { register }),
                     0x33 => Ok(StoreDecimal { register }),
@@ -298,6 +306,8 @@ impl Instruction {
                 y_register,
                 bytes,
             } => from_u4s(0xD, *x_register, *y_register, *bytes),
+            StoreDelayInX { register } => [u4_to_u8(0xF, *register), 0x07],
+            SetDelayToX { register } => [u4_to_u8(0xF, *register), 0x15],
             AddIX { register } => from_u4s(0xF, *register, 0x1, 0xE),
             StoreSpriteX { register } => from_u4s(0xF, *register, 0x2, 0x9),
             StoreDecimal { register } => from_u4s(0xF, *register, 0x3, 0x3),
@@ -466,7 +476,10 @@ mod tests {
                 register_y: 8,
             },
         ),
+        (0xA000, StoreNNN { value: 0x000 }),
         (0xA1F2, StoreNNN { value: 0x1F2 }),
+        (0xAFED, StoreNNN { value: 0xFED }),
+        (0xAFFF, StoreNNN { value: 0xFFF }),
         (0xBDCD, JumpV0 { address: 0xDCD }),
         (
             0xD789,
@@ -483,6 +496,8 @@ mod tests {
                 mask: 0x45,
             },
         ),
+        (0xFA07, StoreDelayInX { register: 0xA }),
+        (0xFC15, SetDelayToX { register: 0xC }),
         (0xFE1E, AddIX { register: 0xE }),
         (0xFA29, StoreSpriteX { register: 0xA }),
         (0xFB33, StoreDecimal { register: 0xB }),

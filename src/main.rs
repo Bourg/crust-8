@@ -1,4 +1,4 @@
-use crust_8::{graphics, machine, settings};
+use crust_8::{graphics, machine, settings, timer};
 use std::{env, fs, thread, time};
 
 fn main() {
@@ -15,9 +15,11 @@ fn main() {
         let mut machine = machine::Machine::new(
             // Clock speed is 500Hz, so 2ms/operation
             //Some(time::Duration::from_millis(2)),
-            Some(time::Duration::from_millis(250)),
+            Some(time::Duration::from_millis(100)),
             machine_graphics,
             rand::thread_rng(),
+            // TODO use a wall timer
+            timer::InstructionTimer::new(),
             settings::Settings {
                 bit_shift_mode: settings::BitShiftMode::OneRegister,
                 on_unrecognized_instruction: settings::OnUnrecognizedInstruction::Skip,

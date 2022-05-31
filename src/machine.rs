@@ -1,17 +1,25 @@
 use crate::instruction::Instruction;
-use crate::register;
 use crate::{graphics, random};
 use crate::{memory, settings};
-use std::{error, thread};
+use crate::{register, timer};
 use std::time;
+use std::{error, thread};
 
-pub struct Machine<G: graphics::Draw, R: random::RandomSource> {
-    pub clock_speed: Option<time::Duration>,
-    pub ram: memory::RAM,
-    pub registers: register::Registers,
-    pub graphics: G,
-    pub random: R,
-    pub settings: settings::Settings,
+// Chip8 runs instructions at 500Hz
+// The timers decrement at 60Hz
+// Therefore, we can decrement timers ~ every 8 instructions
+// This isn't perfect, but can revisit later
+
+pub struct Machine<G: graphics::Draw, R: random::RandomSource, T: timer::Timer> {
+    // TODO move to settings, create a Limited/Unlimited enum for more clarity
+    clock_speed: Option<time::Duration>,
+    ram: memory::RAM,
+    registers: register::Registers,
+    settings: settings::Settings,
+
+    graphics: G,
+    random: R,
+    timer: T,
 }
 
 enum FlagSideEffect {
@@ -21,25 +29,33 @@ enum FlagSideEffect {
 
 type RunResult = Result<(), Box<dyn error::Error>>;
 
-impl<G, R> Machine<G, R>
-    where
-        G: graphics::Draw,
-        R: random::RandomSource,
+impl<G, R, Tmr> Machine<G, R, Tmr>
+where
+    G: graphics::Draw,
+    R: random::RandomSource,
+    Tmr: timer::Timer,
 {
-    pub fn new(clock_speed: Option<time::Duration>, graphics: G, random: R, settings: settings::Settings) -> Machine<G, R> {
+    pub fn new(
+        clock_speed: Option<time::Duration>,
+        graphics: G,
+        random: R,
+        timer: Tmr,
+        settings: settings::Settings,
+    ) -> Machine<G, R, Tmr> {
         Machine {
             clock_speed,
             ram: memory::RAM::new(),
             registers: register::Registers::new(),
+            settings,
             graphics,
             random,
-            settings,
+            timer,
         }
     }
 
     pub fn load_program<T, U>(&mut self, loader: T) -> U
-        where
-            T: memory::ProgramLoader<Output=U>,
+    where
+        T: memory::ProgramLoader<Output = U>,
     {
         self.ram.load_program(loader)
     }
@@ -58,6 +74,10 @@ impl<G, R> Machine<G, R>
 
         // TODO better place to apply clock speed?
         // TODO account for the actual amount of time the instruction took?
+        if self.timer.should_tick() {
+            self.registers.tick_timers();
+        }
+
         if let Some(clock_speed) = self.clock_speed {
             thread::sleep(clock_speed);
         }
@@ -67,11 +87,6 @@ impl<G, R> Machine<G, R>
             self.settings.on_unrecognized_instruction,
         ) {
             (Ok(instruction), _) => {
-                // TODO remove printing
-                println!(
-                    "Handling instruction {:#06X} at address {:#05X}",
-                    instruction_u16, self.registers.pc
-                );
                 self.step(&instruction);
                 Ok(())
             }
@@ -232,6 +247,21 @@ impl<G, R> Machine<G, R>
                 self.registers.set_flag(if flipped { 1 } else { 0 });
                 self.registers.advance_pc();
             }
+            // TODO untested
+            Instruction::StoreDelayInX { register } => {
+                self.registers
+                    .set_register(*register, self.registers.get_register(*register));
+
+                self.registers.advance_pc();
+            }
+            // TODO untested
+            Instruction::SetDelayToX { register } => {
+                let value = self.registers.get_register(*register);
+
+                self.registers.dt = value;
+
+                self.registers.advance_pc();
+            }
             Instruction::AddIX { register } => {
                 self.registers.i += self.registers.get_register(*register) as u16;
                 self.registers.advance_pc();
@@ -280,15 +310,15 @@ impl<G, R> Machine<G, R>
     }
 
     fn op<T>(&mut self, target: &u8, source: &u8, op: T)
-        where
-            T: Fn(u8, u8) -> u8,
+    where
+        T: Fn(u8, u8) -> u8,
     {
         self.flagging_op(target, source, |t, s| (op(t, s), FlagSideEffect::NONE))
     }
 
     fn flagging_op<T>(&mut self, target: &u8, source: &u8, op: T)
-        where
-            T: Fn(u8, u8) -> (u8, FlagSideEffect),
+    where
+        T: Fn(u8, u8) -> (u8, FlagSideEffect),
     {
         let source_value = self.registers.get_register(*source);
         let target_value = self.registers.get_register(*target);
@@ -320,8 +350,10 @@ mod tests {
     use crate::settings::BitShiftMode;
 
     // Convenience constructors for test machines
-    impl Machine<graphics::HeadlessGraphics, random::FixedRandomSource> {
-        pub fn new_headless() -> Machine<graphics::HeadlessGraphics, random::FixedRandomSource> {
+    impl Machine<graphics::HeadlessGraphics, random::FixedRandomSource, timer::InstructionTimer> {
+        pub fn new_headless(
+        ) -> Machine<graphics::HeadlessGraphics, random::FixedRandomSource, timer::InstructionTimer>
+        {
             Machine::new_headless_with_settings(
                 random::FixedRandomSource::new(vec![0]),
                 settings::Settings {
@@ -334,12 +366,14 @@ mod tests {
         pub fn new_headless_with_settings(
             random: random::FixedRandomSource,
             settings: settings::Settings,
-        ) -> Machine<graphics::HeadlessGraphics, random::FixedRandomSource> {
+        ) -> Machine<graphics::HeadlessGraphics, random::FixedRandomSource, timer::InstructionTimer>
+        {
             Machine {
                 clock_speed: None,
                 ram: memory::RAM::new(),
                 registers: register::Registers::new(),
                 graphics: graphics::HeadlessGraphics::new(),
+                timer: timer::InstructionTimer::new(),
                 random,
                 settings,
             }
@@ -689,7 +723,7 @@ mod tests {
         ];
 
         for (settings, instruction, target_value, source_value, expected_output, expected_flag) in
-        cases
+            cases
         {
             let mut machine = Machine::new_headless_with_settings(
                 random::FixedRandomSource::new(vec![0]),
@@ -713,10 +747,10 @@ mod tests {
 
         assert_eq!(0x0, machine.registers.i);
 
-        machine.step(&StoreNNN { value: 0x4090 });
+        machine.step(&StoreNNN { value: 0x409 });
 
         assert_eq!([0u8; 16], machine.registers.v);
-        assert_eq!(0x4090, machine.registers.i)
+        assert_eq!(0x409, machine.registers.i)
     }
 
     #[test]

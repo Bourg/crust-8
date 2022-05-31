@@ -2,7 +2,7 @@ use crust_8::{graphics, machine, settings};
 use std::{env, fs, thread, time};
 
 fn main() {
-    // TODO better error handling
+    // TODO error handling, more isolated CLI logic
     let args: Vec<String> = env::args().collect();
     let filename = args.get(1).unwrap();
     let file = fs::File::open(filename).unwrap();

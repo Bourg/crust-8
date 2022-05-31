@@ -1,3 +1,4 @@
+use crust_8::settings::ClockSpeed;
 use crust_8::{graphics, machine, settings, timer};
 use std::{env, fs, thread, time};
 
@@ -11,19 +12,19 @@ fn main() {
     let window_graphics = graphics::PistonGraphics::new();
     let machine_graphics = window_graphics.clone();
 
+    let settings = settings::Settings::default()
+        .with_clock_speed(ClockSpeed::Limited {
+            instruction_time: time::Duration::from_millis(2),
+        })
+        .with_on_unrecognized_instruction(settings::OnUnrecognizedInstruction::Skip);
+
     thread::spawn(move || {
         let mut machine = machine::Machine::new(
-            // Clock speed is 500Hz, so 2ms/operation
-            //Some(time::Duration::from_millis(2)),
-            Some(time::Duration::from_millis(100)),
             machine_graphics,
             rand::thread_rng(),
-            // TODO use a wall timer
+            // TODO use a wall timer in real-time since 500Hz/60Hz is not an integer
             timer::InstructionTimer::new(),
-            settings::Settings {
-                bit_shift_mode: settings::BitShiftMode::OneRegister,
-                on_unrecognized_instruction: settings::OnUnrecognizedInstruction::Skip,
-            },
+            settings,
         );
 
         // TODO better error handling

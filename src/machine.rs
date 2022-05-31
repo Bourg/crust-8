@@ -2,7 +2,6 @@ use crate::instruction::Instruction;
 use crate::{graphics, random};
 use crate::{memory, settings};
 use crate::{register, timer};
-use std::time;
 use std::{error, thread};
 
 // Chip8 runs instructions at 500Hz
@@ -11,8 +10,6 @@ use std::{error, thread};
 // This isn't perfect, but can revisit later
 
 pub struct Machine<G: graphics::Draw, R: random::RandomSource, T: timer::Timer> {
-    // TODO move to settings, create a Limited/Unlimited enum for more clarity
-    clock_speed: Option<time::Duration>,
     ram: memory::RAM,
     registers: register::Registers,
     settings: settings::Settings,
@@ -36,14 +33,12 @@ where
     Tmr: timer::Timer,
 {
     pub fn new(
-        clock_speed: Option<time::Duration>,
         graphics: G,
         random: R,
         timer: Tmr,
         settings: settings::Settings,
     ) -> Machine<G, R, Tmr> {
         Machine {
-            clock_speed,
             ram: memory::RAM::new(),
             registers: register::Registers::new(),
             settings,
@@ -78,8 +73,8 @@ where
             self.registers.tick_timers();
         }
 
-        if let Some(clock_speed) = self.clock_speed {
-            thread::sleep(clock_speed);
+        if let settings::ClockSpeed::Limited { instruction_time } = self.settings.clock_speed {
+            thread::sleep(instruction_time);
         }
 
         match (
@@ -109,8 +104,6 @@ where
     }
 
     fn step(&mut self, instruction: &Instruction) {
-        let bit_shift_mode = self.settings.bit_shift_mode;
-
         match instruction {
             Instruction::ClearScreen => {
                 self.graphics.clear();
@@ -180,28 +173,36 @@ where
                     (value, FlagSideEffect::SET(!borrow))
                 });
             }
-            Instruction::ShrXY { target, source } => self.flagging_op(target, source, |tv, sv| {
-                let sv = if let settings::BitShiftMode::OneRegister = bit_shift_mode {
-                    tv
-                } else {
-                    sv
-                };
-                (sv >> 1, FlagSideEffect::SET(sv % 2 == 1))
-            }),
+            Instruction::ShrXY { target, source } => {
+                let bit_shift_mode = self.settings.bit_shift_mode;
+
+                self.flagging_op(target, source, |tv, sv| {
+                    let sv = if let settings::BitShiftMode::OneRegister = bit_shift_mode {
+                        tv
+                    } else {
+                        sv
+                    };
+                    (sv >> 1, FlagSideEffect::SET(sv % 2 == 1))
+                })
+            }
             Instruction::SUBXYReverse { target, source } => {
                 self.flagging_op(target, source, |tv, sv| {
                     let (value, borrow) = sv.overflowing_sub(tv);
                     (value, FlagSideEffect::SET(!borrow))
                 });
             }
-            Instruction::ShlXY { target, source } => self.flagging_op(target, source, |tv, sv| {
-                let sv = if let settings::BitShiftMode::OneRegister = bit_shift_mode {
-                    tv
-                } else {
-                    sv
-                };
-                (sv << 1, FlagSideEffect::SET(sv & 0x80 != 0))
-            }),
+            Instruction::ShlXY { target, source } => {
+                let bit_shift_mode = self.settings.bit_shift_mode;
+
+                self.flagging_op(target, source, |tv, sv| {
+                    let sv = if let settings::BitShiftMode::OneRegister = bit_shift_mode {
+                        tv
+                    } else {
+                        sv
+                    };
+                    (sv << 1, FlagSideEffect::SET(sv & 0x80 != 0))
+                })
+            }
             // TODO this is missing test coverage
             Instruction::SkipNeXY {
                 register_x,
@@ -292,7 +293,10 @@ where
                 let source_registers = &self.registers.v[0..=*max_register as usize];
 
                 target_memory.copy_from_slice(source_registers);
-                *address += *max_register as u16 + 1;
+
+                if let settings::MemoryMode::Advance = self.settings.memory_mode {
+                    *address += *max_register as u16 + 1;
+                }
 
                 self.registers.advance_pc();
             }
@@ -302,7 +306,10 @@ where
                 let target_registers = &mut self.registers.v[0..=*max_register as usize];
 
                 target_registers.copy_from_slice(source_memory);
-                *address += *max_register as u16 + 1;
+
+                if let settings::MemoryMode::Advance = self.settings.memory_mode {
+                    *address += *max_register as u16 + 1;
+                }
 
                 self.registers.advance_pc();
             }
@@ -347,7 +354,6 @@ fn to_decimal_digits(value: u8) -> (u8, u8, u8) {
 mod tests {
     use super::*;
     use crate::instruction::Instruction::*;
-    use crate::settings::BitShiftMode;
 
     // Convenience constructors for test machines
     impl Machine<graphics::HeadlessGraphics, random::FixedRandomSource, timer::InstructionTimer> {
@@ -356,10 +362,7 @@ mod tests {
         {
             Machine::new_headless_with_settings(
                 random::FixedRandomSource::new(vec![0]),
-                settings::Settings {
-                    bit_shift_mode: settings::BitShiftMode::OneRegister,
-                    on_unrecognized_instruction: settings::OnUnrecognizedInstruction::Halt,
-                },
+                settings::Settings::default(),
             )
         }
 
@@ -369,7 +372,6 @@ mod tests {
         ) -> Machine<graphics::HeadlessGraphics, random::FixedRandomSource, timer::InstructionTimer>
         {
             Machine {
-                clock_speed: None,
                 ram: memory::RAM::new(),
                 registers: register::Registers::new(),
                 graphics: graphics::HeadlessGraphics::new(),
@@ -699,14 +701,10 @@ mod tests {
         let target = 0xE;
         let source = 0xD;
 
-        let one_register_settings = &settings::Settings {
-            bit_shift_mode: BitShiftMode::OneRegister,
-            on_unrecognized_instruction: settings::OnUnrecognizedInstruction::Halt,
-        };
-        let two_register_settings = &settings::Settings {
-            bit_shift_mode: BitShiftMode::TwoRegister,
-            on_unrecognized_instruction: settings::OnUnrecognizedInstruction::Halt,
-        };
+        let one_register_settings =
+            settings::Settings::default().with_bit_shift_mode(settings::BitShiftMode::OneRegister);
+        let two_register_settings =
+            settings::Settings::default().with_bit_shift_mode(settings::BitShiftMode::TwoRegister);
 
         let shr = &ShrXY { target, source };
         let shl = &ShlXY { target, source };
@@ -814,10 +812,7 @@ mod tests {
 
         let mut machine = Machine::new_headless_with_settings(
             random::FixedRandomSource::new(random_numbers.clone()),
-            settings::Settings {
-                bit_shift_mode: BitShiftMode::OneRegister,
-                on_unrecognized_instruction: settings::OnUnrecognizedInstruction::Halt,
-            },
+            settings::Settings::default(),
         );
 
         machine
@@ -861,7 +856,11 @@ mod tests {
     fn test_read_from_memory() {
         let start_memory = 0xEE0;
 
+        // TODO need tests for NoAdvance mode
         let mut machine = Machine::new_headless();
+        machine.settings = machine
+            .settings
+            .with_memory_mode(settings::MemoryMode::Advance);
 
         let memory = machine.ram.address_mut(start_memory);
         memory[0..5].copy_from_slice(&[1, 3, 5, 7, 9]);
@@ -918,6 +917,10 @@ mod tests {
         ];
 
         let mut machine = Machine::new_headless();
+        machine.settings = machine
+            .settings
+            .with_memory_mode(settings::MemoryMode::Advance);
+
         machine.test_program_linear(&program).unwrap();
 
         assert_eq!(0xAC1, machine.registers.i);

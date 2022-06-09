@@ -6,13 +6,17 @@ use Instruction::*;
 pub enum Instruction {
     // 00E0
     ClearScreen,
-    // TODO 00EE - RET (Category: Subroutines)
-    // TODO 0nnn - SYS addr (Category: Subroutines)
-    // 1NNN,
+    // 00EE
+    Return,
+    // 0NNN Intentionally unimplemented
+    // 1NNN
     JumpNNN {
         address: memory::Address,
     },
-    // TODO 2nnn - CALL addr (Category: Subroutines)
+    // 2NNN
+    CallNNN {
+        address: memory::Address,
+    },
     // 3XNN
     SkipEqXNN {
         register: u8,
@@ -157,11 +161,16 @@ impl Instruction {
             0 => {
                 if left == 0 && right == 0xE0 {
                     Ok(ClearScreen)
+                } else if left == 0 && right == 0xEE {
+                    Ok(Return)
                 } else {
                     err_unsupported_instruction(left, right)
                 }
             }
             1 => Ok(JumpNNN {
+                address: (((left & 0xF) as u16) << 8) + right as u16,
+            }),
+            2 => Ok(CallNNN {
                 address: (((left & 0xF) as u16) << 8) + right as u16,
             }),
             3 => Ok(SkipEqXNN {
@@ -267,7 +276,9 @@ impl Instruction {
     pub fn to_bytes(&self) -> InstructionBytes {
         match self {
             ClearScreen => [0x00, 0xE0],
+            Return => [0x00, 0xEE],
             JumpNNN { address } => from_u12(0x1, *address),
+            CallNNN { address } => from_u12(0x2, *address),
             SkipEqXNN { register, value } => [u4_to_u8(0x3, *register), *value],
             SkipNeXNN { register, value } => [u4_to_u8(0x4, *register), *value],
             SkipEqXY {
@@ -370,7 +381,9 @@ mod tests {
 
     static CASES: &[(u16, Instruction)] = &[
         (0x00E0, ClearScreen),
+        (0x00EE, Return),
         (0x1CDC, JumpNNN { address: 0xCDC }),
+        (0x2EDC, CallNNN { address: 0xEDC }),
         (
             0x3456,
             SkipEqXNN {

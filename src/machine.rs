@@ -109,8 +109,15 @@ where
                 self.graphics.clear();
                 self.registers.advance_pc();
             }
+            // TODO this is untested
+            Instruction::Return => {
+                self.registers.stack_return();
+            }
             Instruction::JumpNNN { address } => {
                 self.registers.pc = *address;
+            }
+            Instruction::CallNNN { address } => {
+                self.registers.stack_call(*address);
             }
             // TODO this is missing test coverage
             Instruction::SkipEqXNN { register, value } => {

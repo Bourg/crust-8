@@ -111,9 +111,14 @@ pub enum Instruction {
         y_register: u8,
         bytes: u8,
     },
-    // TODO Ex9E - SKP Vx (Input / flow control, skip if key in VX is pressed)
-    // TODO ExA1 - SKNP Vx (Input / flow control, Skip if key in VX is not pressed)
-
+    // EX9E
+    SkipPressedX {
+        register: u8,
+    },
+    // EXA1
+    SkipNotPressedX {
+        register: u8,
+    },
     // FX07
     StoreDelayInX {
         register: u8,
@@ -251,6 +256,15 @@ impl Instruction {
                 y_register: right >> 4,
                 bytes: right & 0xF,
             }),
+            0xE => {
+                let register = left & 0xF;
+
+                match right {
+                    0x9E => Ok(SkipPressedX { register }),
+                    0xA1 => Ok(SkipNotPressedX { register }),
+                    _ => err_unsupported_instruction(left, right),
+                }
+            }
             0xF => {
                 let register = left & 0xF;
 
@@ -321,6 +335,8 @@ impl Instruction {
                 y_register,
                 bytes,
             } => from_u4s(0xD, *x_register, *y_register, *bytes),
+            SkipPressedX { register } => [u4_to_u8(0xE, *register), 0x9E],
+            SkipNotPressedX { register } => [u4_to_u8(0xE, *register), 0xA1],
             StoreDelayInX { register } => [u4_to_u8(0xF, *register), 0x07],
             SetDelayToX { register } => [u4_to_u8(0xF, *register), 0x15],
             SetSoundToX { register } => [u4_to_u8(0xF, *register), 0x18],
@@ -355,6 +371,7 @@ impl memory::ProgramLoader for &Vec<Instruction> {
     }
 }
 
+// TODO maybe should just have an error type
 fn err_unsupported_instruction<T>(left: u8, right: u8) -> Result<T, String> {
     Err(format!(
         "Unsupported instruction {:#06X}",
@@ -514,6 +531,8 @@ mod tests {
                 mask: 0x45,
             },
         ),
+        (0xE29E, SkipPressedX { register: 0x2 }),
+        (0xE3A1, SkipNotPressedX { register: 0x3 }),
         (0xFA07, StoreDelayInX { register: 0xA }),
         (0xFC15, SetDelayToX { register: 0xC }),
         (0xFD18, SetSoundToX { register: 0xD }),

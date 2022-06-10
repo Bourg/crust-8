@@ -1,3 +1,6 @@
+use opengl_graphics::{GlGraphics, OpenGL};
+use piston::input::RenderEvent;
+use piston::RenderArgs;
 use std::error;
 use std::fmt;
 use std::sync::{Arc, Mutex};
@@ -9,33 +12,111 @@ pub type Pixel = bool;
 
 // TODO actually need to play audio when ST > 1
 
-pub trait Draw {
+const NUMBER_OF_KEYS: usize = 0x10;
+
+#[derive(Copy, Clone)]
+pub enum Key {
+    D0 = 0,
+    D1 = 1,
+    D2 = 2,
+    D3 = 3,
+    D4 = 4,
+    D5 = 5,
+    D6 = 6,
+    D7 = 7,
+    D8 = 8,
+    D9 = 9,
+    A = 0xA,
+    B = 0xB,
+    C = 0xC,
+    D = 0xD,
+    E = 0xE,
+    F = 0xF,
+}
+
+impl Key {
+    pub fn from_u8(value: u8) -> Option<Key> {
+        match value {
+            0x0 => Some(Key::D0),
+            0x1 => Some(Key::D1),
+            0x2 => Some(Key::D2),
+            0x3 => Some(Key::D3),
+            0x4 => Some(Key::D4),
+            0x5 => Some(Key::D5),
+            0x6 => Some(Key::D6),
+            0x7 => Some(Key::D7),
+            0x8 => Some(Key::D8),
+            0x9 => Some(Key::D9),
+            0xA => Some(Key::A),
+            0xB => Some(Key::B),
+            0xC => Some(Key::C),
+            0xD => Some(Key::D),
+            0xE => Some(Key::E),
+            0xF => Some(Key::F),
+            _ => None,
+        }
+    }
+
+    fn from_key(key: piston::input::Key) -> Option<Key> {
+        match key {
+            piston::input::Key::D1 => Some(Key::D1),
+            piston::input::Key::D2 => Some(Key::D2),
+            piston::input::Key::D3 => Some(Key::D3),
+            piston::input::Key::D4 => Some(Key::C),
+            piston::input::Key::Q => Some(Key::D4),
+            piston::input::Key::W => Some(Key::D5),
+            piston::input::Key::E => Some(Key::D6),
+            piston::input::Key::R => Some(Key::D),
+            piston::input::Key::A => Some(Key::D7),
+            piston::input::Key::S => Some(Key::D8),
+            piston::input::Key::D => Some(Key::D9),
+            piston::input::Key::F => Some(Key::E),
+            piston::input::Key::Z => Some(Key::A),
+            piston::input::Key::X => Some(Key::D0),
+            piston::input::Key::C => Some(Key::B),
+            piston::input::Key::V => Some(Key::F),
+            _ => None,
+        }
+    }
+
+    fn from_button(button: piston::Button) -> Option<Key> {
+        match button {
+            piston::Button::Keyboard(key) => Self::from_key(key),
+            _ => None,
+        }
+    }
+}
+
+pub trait Chip8IO {
     fn clear(&mut self);
 
     fn draw(&mut self, x: u8, y: u8, sprite: &[u8]) -> bool;
+
+    fn read_key(&mut self, key: Key) -> bool;
 }
 
-pub struct HeadlessGraphics {
-    // This is an inefficient representation but not making it public
-    buffer: [bool; WIDTH_PX * HEIGHT_PX],
+pub struct HeadlessIO {
+    key_buffer: [bool; NUMBER_OF_KEYS],
+    video_buffer: [bool; WIDTH_PX * HEIGHT_PX],
 }
 
-impl HeadlessGraphics {
-    pub fn new() -> HeadlessGraphics {
-        HeadlessGraphics {
-            buffer: [false; WIDTH_PX * HEIGHT_PX],
+impl HeadlessIO {
+    pub fn new() -> HeadlessIO {
+        HeadlessIO {
+            key_buffer: [false; NUMBER_OF_KEYS],
+            video_buffer: [false; WIDTH_PX * HEIGHT_PX],
         }
     }
 
     pub fn get_pixel(&self, x: u8, y: u8) -> Option<Pixel> {
-        HeadlessGraphics::index_pixel(x, y).map(|index| self.buffer[index])
+        HeadlessIO::index_pixel(x, y).map(|index| self.video_buffer[index])
     }
 
     fn flip_pixel(&mut self, x: u8, y: u8) -> bool {
-        HeadlessGraphics::index_pixel(x, y)
+        HeadlessIO::index_pixel(x, y)
             .map(|index| {
-                let previous = self.buffer[index];
-                self.buffer[index] = !previous;
+                let previous = self.video_buffer[index];
+                self.video_buffer[index] = !previous;
                 return previous;
             })
             .unwrap_or(false)
@@ -53,7 +134,7 @@ impl HeadlessGraphics {
     }
 }
 
-impl fmt::Display for HeadlessGraphics {
+impl fmt::Display for HeadlessIO {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for y in 0..HEIGHT_PX {
             for x in 0..WIDTH_PX {
@@ -72,9 +153,9 @@ impl fmt::Display for HeadlessGraphics {
     }
 }
 
-impl Draw for HeadlessGraphics {
+impl Chip8IO for HeadlessIO {
     fn clear(&mut self) {
-        for pixel in self.buffer.iter_mut() {
+        for pixel in self.video_buffer.iter_mut() {
             *pixel = false;
         }
     }
@@ -103,63 +184,101 @@ impl Draw for HeadlessGraphics {
 
         flipped_pixel
     }
+
+    fn read_key(&mut self, key: Key) -> bool {
+        self.key_buffer.get(key as usize).cloned().unwrap_or(false)
+    }
 }
 
 // TODO I'm really not super happy with the ownership structure for window graphics
 #[derive(Clone)]
 pub struct PistonGraphics {
-    buffer: Arc<Mutex<HeadlessGraphics>>,
+    headless: Arc<Mutex<HeadlessIO>>,
 }
 
 impl PistonGraphics {
     pub fn new() -> PistonGraphics {
         PistonGraphics {
-            buffer: Arc::new(Mutex::new(HeadlessGraphics::new())),
+            headless: Arc::new(Mutex::new(HeadlessIO::new())),
         }
     }
 
-    pub fn open_window(&self) -> Result<(), Box<dyn error::Error>> {
-        let mut window: piston_window::PistonWindow =
-            piston::WindowSettings::new("crust8", [640, 320]).build()?;
+    fn render(&self, gl: &mut GlGraphics, args: &RenderArgs) {
+        gl.draw(args.viewport(), |c, gl| {
+            let buffer = self.headless.lock().unwrap();
 
-        while let Some(e) = window.next() {
-            window.draw_2d(&e, move |c, g, _| {
-                let buffer = self.buffer.lock().unwrap();
+            graphics::clear([1.0, 1.0, 1.0, 1.0], gl);
 
-                graphics::clear([1.0, 1.0, 1.0, 1.0], g);
+            for y in 0..HEIGHT_PX {
+                for x in 0..WIDTH_PX {
+                    let pixel = buffer.get_pixel(x as u8, y as u8);
 
-                for y in 0..HEIGHT_PX {
-                    for x in 0..WIDTH_PX {
-                        let pixel = buffer.get_pixel(x as u8, y as u8);
+                    if pixel == Some(true) {
+                        let start_x = 10.0 * x as f64;
+                        let start_y = 10.0 * y as f64;
 
-                        if pixel == Some(true) {
-                            let start_x = 10.0 * x as f64;
-                            let start_y = 10.0 * y as f64;
-
-                            graphics::rectangle(
-                                [0.0, 0.0, 0.0, 1.0],
-                                [start_x, start_y, 10.0, 10.0],
-                                c.transform,
-                                g,
-                            );
-                        }
+                        graphics::rectangle(
+                            [0.0, 0.0, 0.0, 1.0],
+                            [start_x, start_y, 10.0, 10.0],
+                            c.transform,
+                            gl,
+                        );
                     }
                 }
+            }
+        })
+    }
+
+    pub fn open_window(&self) -> Result<(), Box<dyn error::Error>> {
+        // TODO old version
+        let opengl = OpenGL::V4_5;
+
+        let mut window: glutin_window::GlutinWindow =
+            piston::WindowSettings::new("crust-8", [640, 320])
+                .graphics_api(opengl)
+                .exit_on_esc(true)
+                .build()
+                .unwrap();
+
+        let mut gl = GlGraphics::new(opengl);
+
+        let mut events = piston::Events::new(piston::EventSettings::new());
+
+        while let Some(e) = events.next(&mut window) {
+            // TODO can probably be smarter about not duplicating these checks
+            // TODO look at the press and release implementations to see the underlying
+            piston::input::PressEvent::press(&e, |button| {
+                if let Some(key) = Key::from_button(button) {
+                    self.headless.lock().unwrap().key_buffer[key as usize] = true;
+                }
             });
+            piston::input::ReleaseEvent::release(&e, |button| {
+                if let Some(key) = Key::from_button(button) {
+                    self.headless.lock().unwrap().key_buffer[key as usize] = false;
+                }
+            });
+
+            if let Some(args) = e.render_args() {
+                self.render(&mut gl, &args)
+            }
         }
 
         Ok(())
     }
 }
 
-impl Draw for PistonGraphics {
+impl Chip8IO for PistonGraphics {
     // TODO do we need result types for these
     fn clear(&mut self) {
-        self.buffer.lock().unwrap().clear();
+        self.headless.lock().unwrap().clear();
     }
 
     fn draw(&mut self, x: u8, y: u8, sprite: &[u8]) -> bool {
-        self.buffer.lock().unwrap().draw(x, y, sprite)
+        self.headless.lock().unwrap().draw(x, y, sprite)
+    }
+
+    fn read_key(&mut self, key: Key) -> bool {
+        self.headless.lock().unwrap().read_key(key)
     }
 }
 
@@ -169,25 +288,25 @@ mod tests {
 
     #[test]
     fn test_index_pixel() {
-        assert_eq!(None, HeadlessGraphics::index_pixel(32, 63));
-        assert_eq!(None, HeadlessGraphics::index_pixel(31, 64));
-        assert_eq!(None, HeadlessGraphics::index_pixel(32, 64));
+        assert_eq!(None, HeadlessIO::index_pixel(32, 63));
+        assert_eq!(None, HeadlessIO::index_pixel(31, 64));
+        assert_eq!(None, HeadlessIO::index_pixel(32, 64));
 
-        assert_eq!(0, HeadlessGraphics::index_pixel(0, 0).unwrap());
-        assert_eq!(5, HeadlessGraphics::index_pixel(5, 0).unwrap());
-        assert_eq!(63, HeadlessGraphics::index_pixel(63, 0).unwrap());
-        assert_eq!(64, HeadlessGraphics::index_pixel(0, 1).unwrap());
-        assert_eq!(140, HeadlessGraphics::index_pixel(12, 2).unwrap());
-        assert_eq!(2047, HeadlessGraphics::index_pixel(63, 31).unwrap());
+        assert_eq!(0, HeadlessIO::index_pixel(0, 0).unwrap());
+        assert_eq!(5, HeadlessIO::index_pixel(5, 0).unwrap());
+        assert_eq!(63, HeadlessIO::index_pixel(63, 0).unwrap());
+        assert_eq!(64, HeadlessIO::index_pixel(0, 1).unwrap());
+        assert_eq!(140, HeadlessIO::index_pixel(12, 2).unwrap());
+        assert_eq!(2047, HeadlessIO::index_pixel(63, 31).unwrap());
     }
 
     #[test]
     fn test_pixel_operations() {
-        let mut graphics = HeadlessGraphics::new();
+        let mut graphics = HeadlessIO::new();
 
         // Should be off to start
         assert_eq!(Some(false), graphics.get_pixel(6, 1));
-        graphics.buffer[70] = true;
+        graphics.video_buffer[70] = true;
 
         // Looking up the pixel by coordinate should be true now
         assert_eq!(Some(true), graphics.get_pixel(6, 1));
@@ -202,20 +321,20 @@ mod tests {
         assert_eq!(false, graphics.flip_pixel(6, 1));
         assert_eq!(true, graphics.flip_pixel(6, 1));
 
-        assert_eq!([false; 2048], graphics.buffer);
+        assert_eq!([false; 2048], graphics.video_buffer);
     }
 
     #[test]
     fn test_headless_graphics() {
-        let mut graphics = HeadlessGraphics::new();
+        let mut graphics = HeadlessIO::new();
 
         // There should be 2048 boolean cells in the graphics buffer
-        assert_eq!([false; 2048], graphics.buffer);
+        assert_eq!([false; 2048], graphics.video_buffer);
 
         // Drawing an empty sprite should not affect the buffer or indicate a flip
         let flipped = graphics.draw(0, 0, &[]);
         assert_eq!(false, flipped);
-        assert_eq!([false; 2048], graphics.buffer);
+        assert_eq!([false; 2048], graphics.video_buffer);
 
         // This sprite forms a checkerboard pattern
         let sprite_positive = [0xAA, 0x55, 0xAA, 0x55];
@@ -230,26 +349,26 @@ mod tests {
         assert_eq!(false, flipped);
 
         // Check the whole draw area
-        assert_eq!(pixels_aa, graphics.buffer[0..8]);
-        assert_eq!(pixels_55, graphics.buffer[64..72]);
-        assert_eq!(pixels_aa, graphics.buffer[128..136]);
-        assert_eq!(pixels_55, graphics.buffer[192..200]);
+        assert_eq!(pixels_aa, graphics.video_buffer[0..8]);
+        assert_eq!(pixels_55, graphics.video_buffer[64..72]);
+        assert_eq!(pixels_aa, graphics.video_buffer[128..136]);
+        assert_eq!(pixels_55, graphics.video_buffer[192..200]);
 
         // Check a few things outside the draw area
-        assert_eq!(pixels_00, graphics.buffer[8..16]);
-        assert_eq!(pixels_00, graphics.buffer[200..208]);
+        assert_eq!(pixels_00, graphics.video_buffer[8..16]);
+        assert_eq!(pixels_00, graphics.video_buffer[200..208]);
 
         // Draw the checkerboard's inverse
         let flipped = graphics.draw(0, 0, &sprite_negative);
         assert_eq!(false, flipped);
         for y in 0..4 {
-            assert_eq!(pixels_ff, graphics.buffer[y * 64..y * 64 + 8])
+            assert_eq!(pixels_ff, graphics.video_buffer[y * 64..y * 64 + 8])
         }
 
         // Flip both checkerboards off again, should reset the board
         assert_eq!(true, graphics.draw(0, 0, &sprite_positive));
         assert_eq!(true, graphics.draw(0, 0, &sprite_negative));
-        assert_eq!([false; 2048], graphics.buffer);
+        assert_eq!([false; 2048], graphics.video_buffer);
     }
 
     #[test]
@@ -257,7 +376,7 @@ mod tests {
         // An 8x8 all-black sprite
         let sprite = [0xFF; 8];
 
-        let mut graphics = HeadlessGraphics::new();
+        let mut graphics = HeadlessIO::new();
 
         let flipped = graphics.draw(WIDTH_PX as u8 - 1, HEIGHT_PX as u8 - 1, &sprite);
         assert_eq!(false, flipped);
@@ -265,6 +384,6 @@ mod tests {
         let mut expected = [false; 2048];
         expected[2047] = true;
 
-        assert_eq!(expected, graphics.buffer);
+        assert_eq!(expected, graphics.video_buffer);
     }
 }

@@ -9,7 +9,7 @@ use std::{error, thread};
 // Therefore, we can decrement timers ~ every 8 instructions
 // This isn't perfect, but can revisit later
 
-pub struct Machine<G: graphics::Draw, R: random::RandomSource, T: timer::Timer> {
+pub struct Machine<G: graphics::Chip8IO, R: random::RandomSource, T: timer::Timer> {
     ram: memory::RAM,
     registers: register::Registers,
     settings: settings::Settings,
@@ -28,7 +28,7 @@ type RunResult = Result<(), Box<dyn error::Error>>;
 
 impl<G, R, Tmr> Machine<G, R, Tmr>
 where
-    G: graphics::Draw,
+    G: graphics::Chip8IO,
     R: random::RandomSource,
     Tmr: timer::Timer,
 {
@@ -256,6 +256,26 @@ where
                 self.registers.advance_pc();
             }
             // TODO untested
+            Instruction::SkipPressedX { register } => {
+                let value = self.registers.get_register(*register);
+                if let Some(key) = graphics::Key::from_u8(value) {
+                    if self.graphics.read_key(key) {
+                        self.registers.advance_pc();
+                    }
+                }
+                self.registers.advance_pc();
+            }
+            // TODO untested
+            Instruction::SkipNotPressedX { register } => {
+                let value = self.registers.get_register(*register);
+                if let Some(key) = graphics::Key::from_u8(value) {
+                    if !self.graphics.read_key(key) {
+                        self.registers.advance_pc();
+                    }
+                }
+                self.registers.advance_pc();
+            }
+            // TODO untested
             Instruction::StoreDelayInX { register } => {
                 self.registers.set_register(*register, self.registers.dt);
 
@@ -370,9 +390,9 @@ mod tests {
     use crate::instruction::Instruction::*;
 
     // Convenience constructors for test machines
-    impl Machine<graphics::HeadlessGraphics, random::FixedRandomSource, timer::InstructionTimer> {
+    impl Machine<graphics::HeadlessIO, random::FixedRandomSource, timer::InstructionTimer> {
         pub fn new_headless(
-        ) -> Machine<graphics::HeadlessGraphics, random::FixedRandomSource, timer::InstructionTimer>
+        ) -> Machine<graphics::HeadlessIO, random::FixedRandomSource, timer::InstructionTimer>
         {
             Machine::new_headless_with_settings(
                 random::FixedRandomSource::new(vec![0]),
@@ -383,12 +403,12 @@ mod tests {
         pub fn new_headless_with_settings(
             random: random::FixedRandomSource,
             settings: settings::Settings,
-        ) -> Machine<graphics::HeadlessGraphics, random::FixedRandomSource, timer::InstructionTimer>
+        ) -> Machine<graphics::HeadlessIO, random::FixedRandomSource, timer::InstructionTimer>
         {
             Machine {
                 ram: memory::RAM::new(),
                 registers: register::Registers::new(),
-                graphics: graphics::HeadlessGraphics::new(),
+                graphics: graphics::HeadlessIO::new(),
                 timer: timer::InstructionTimer::new(),
                 random,
                 settings,

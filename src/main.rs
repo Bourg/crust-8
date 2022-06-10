@@ -18,6 +18,8 @@ fn main() {
         })
         .with_on_unrecognized_instruction(settings::OnUnrecognizedInstruction::Skip);
 
+    // TODO use a channel to send a ready message from the IO since it takes a while to init
+
     thread::spawn(move || {
         let mut machine = machine::Machine::new(
             machine_graphics,

@@ -123,7 +123,10 @@ pub enum Instruction {
     SetDelayToX {
         register: u8,
     },
-    // TODO Fx18 - LD ST, Vx (Sound, set sound timer to value of VX)
+    //  FX18
+    SetSoundToX {
+        register: u8,
+    },
     // FX1E
     AddIX {
         register: u8,
@@ -254,6 +257,7 @@ impl Instruction {
                 match right {
                     0x07 => Ok(StoreDelayInX { register }),
                     0x15 => Ok(SetDelayToX { register }),
+                    0x18 => Ok(SetSoundToX { register }),
                     0x1E => Ok(AddIX { register }),
                     0x29 => Ok(StoreSpriteX { register }),
                     0x33 => Ok(StoreDecimal { register }),
@@ -319,6 +323,7 @@ impl Instruction {
             } => from_u4s(0xD, *x_register, *y_register, *bytes),
             StoreDelayInX { register } => [u4_to_u8(0xF, *register), 0x07],
             SetDelayToX { register } => [u4_to_u8(0xF, *register), 0x15],
+            SetSoundToX { register } => [u4_to_u8(0xF, *register), 0x18],
             AddIX { register } => from_u4s(0xF, *register, 0x1, 0xE),
             StoreSpriteX { register } => from_u4s(0xF, *register, 0x2, 0x9),
             StoreDecimal { register } => from_u4s(0xF, *register, 0x3, 0x3),
@@ -511,6 +516,7 @@ mod tests {
         ),
         (0xFA07, StoreDelayInX { register: 0xA }),
         (0xFC15, SetDelayToX { register: 0xC }),
+        (0xFD18, SetSoundToX { register: 0xD }),
         (0xFE1E, AddIX { register: 0xE }),
         (0xFA29, StoreSpriteX { register: 0xA }),
         (0xFB33, StoreDecimal { register: 0xB }),

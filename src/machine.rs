@@ -257,8 +257,7 @@ where
             }
             // TODO untested
             Instruction::StoreDelayInX { register } => {
-                self.registers
-                    .set_register(*register, self.registers.get_register(*register));
+                self.registers.set_register(*register, self.registers.dt);
 
                 self.registers.advance_pc();
             }
@@ -267,6 +266,14 @@ where
                 let value = self.registers.get_register(*register);
 
                 self.registers.dt = value;
+
+                self.registers.advance_pc();
+            }
+            // TODO untested
+            Instruction::SetSoundToX { register } => {
+                let value = self.registers.get_register(*register);
+
+                self.registers.st = value;
 
                 self.registers.advance_pc();
             }

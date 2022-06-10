@@ -7,6 +7,8 @@ pub const HEIGHT_PX: usize = 32;
 
 pub type Pixel = bool;
 
+// TODO actually need to play audio when ST > 1
+
 pub trait Draw {
     fn clear(&mut self);
 
@@ -90,6 +92,7 @@ impl Draw for HeadlessGraphics {
                 let pixel = (sprite_line & (1 << sprite_x)) != 0;
 
                 if pixel {
+                    // TODO should add with wrap to avoid poisoning the lock
                     let target_x = canvas_x + sprite_x;
                     let target_y = canvas_y + sprite_y;
 

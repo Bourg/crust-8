@@ -83,10 +83,6 @@ where
             self.settings.on_unrecognized_instruction,
         ) {
             (Ok(instruction), _) => {
-                println!(
-                    "Executing instruction {:#06X} at address {:#05X}",
-                    instruction_u16, self.registers.pc
-                );
                 self.step(&instruction);
                 Ok(())
             }

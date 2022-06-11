@@ -1,5 +1,6 @@
+use crust_8::io::graphics;
 use crust_8::settings::ClockSpeed;
-use crust_8::{graphics, machine, settings, timer};
+use crust_8::{machine, settings, timer};
 use std::{env, fs, thread, time};
 
 fn main() {

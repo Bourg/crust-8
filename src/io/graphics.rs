@@ -1,3 +1,4 @@
+use crate::io::key::{Key, MapKey, NUMBER_OF_KEYS};
 use opengl_graphics::{GlGraphics, OpenGL};
 use piston::input::RenderEvent;
 use piston::RenderArgs;
@@ -6,6 +7,8 @@ use std::fmt;
 use std::ops::DerefMut;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
+
+// TODO decompose this
 
 // TODO rename to io / split graphics and keys
 
@@ -16,53 +19,19 @@ pub type Pixel = bool;
 
 // TODO actually need to play audio when ST > 1
 
-const NUMBER_OF_KEYS: usize = 0x10;
-
-#[derive(Copy, Clone)]
-pub enum Key {
-    D0 = 0,
-    D1 = 1,
-    D2 = 2,
-    D3 = 3,
-    D4 = 4,
-    D5 = 5,
-    D6 = 6,
-    D7 = 7,
-    D8 = 8,
-    D9 = 9,
-    A = 0xA,
-    B = 0xB,
-    C = 0xC,
-    D = 0xD,
-    E = 0xE,
-    F = 0xF,
-}
-
-impl Key {
-    pub fn from_u8(value: u8) -> Option<Key> {
-        match value {
-            0x0 => Some(Key::D0),
-            0x1 => Some(Key::D1),
-            0x2 => Some(Key::D2),
-            0x3 => Some(Key::D3),
-            0x4 => Some(Key::D4),
-            0x5 => Some(Key::D5),
-            0x6 => Some(Key::D6),
-            0x7 => Some(Key::D7),
-            0x8 => Some(Key::D8),
-            0x9 => Some(Key::D9),
-            0xA => Some(Key::A),
-            0xB => Some(Key::B),
-            0xC => Some(Key::C),
-            0xD => Some(Key::D),
-            0xE => Some(Key::E),
-            0xF => Some(Key::F),
+impl MapKey for piston::input::Button {
+    fn map_key(&self) -> Option<Key> {
+        match self {
+            piston::Button::Keyboard(piston_key) => piston_key.map_key(),
             _ => None,
         }
     }
+}
 
-    fn from_key(key: piston::input::Key) -> Option<Key> {
-        match key {
+// TODO move
+impl MapKey for piston::input::Key {
+    fn map_key(&self) -> Option<Key> {
+        match self {
             piston::input::Key::D1 => Some(Key::D1),
             piston::input::Key::D2 => Some(Key::D2),
             piston::input::Key::D3 => Some(Key::D3),
@@ -80,14 +49,6 @@ impl Key {
             piston::input::Key::C => Some(Key::B),
             piston::input::Key::V => Some(Key::F),
             piston::input::Key::J => Some(Key::A),
-            _ => None,
-        }
-    }
-
-    // TODO this should take a reference
-    fn from_button(button: piston::Button) -> Option<Key> {
-        match button {
-            piston::Button::Keyboard(key) => Self::from_key(key),
             _ => None,
         }
     }
@@ -264,7 +225,7 @@ impl PistonGraphics {
             // TODO can probably be smarter about not duplicating these checks
             // TODO look at the press and release implementations to see the underlying
             piston::input::PressEvent::press(&e, |button| {
-                if let Some(key) = Key::from_button(button) {
+                if let Some(key) = button.map_key() {
                     self.headless.lock().unwrap().key_buffer[key as usize] = true;
 
                     // TODO This is so sloppy
@@ -279,7 +240,7 @@ impl PistonGraphics {
                 }
             });
             piston::input::ReleaseEvent::release(&e, |button| {
-                if let Some(key) = Key::from_button(button) {
+                if let Some(key) = button.map_key() {
                     self.headless.lock().unwrap().key_buffer[key as usize] = false;
                 }
             });

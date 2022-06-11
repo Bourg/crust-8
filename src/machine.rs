@@ -1,5 +1,7 @@
 use crate::instruction::Instruction;
-use crate::{graphics, random};
+use crate::io::graphics;
+use crate::io::key::MapKey;
+use crate::random;
 use crate::{memory, settings};
 use crate::{register, timer};
 use std::sync::mpsc;
@@ -259,7 +261,7 @@ where
             // TODO untested
             Instruction::SkipPressedX { register } => {
                 let value = self.registers.get_register(*register);
-                if let Some(key) = graphics::Key::from_u8(value) {
+                if let Some(key) = value.map_key() {
                     if self.graphics.read_key(key) {
                         self.registers.advance_pc();
                     }
@@ -269,7 +271,7 @@ where
             // TODO untested
             Instruction::SkipNotPressedX { register } => {
                 let value = self.registers.get_register(*register);
-                if let Some(key) = graphics::Key::from_u8(value) {
+                if let Some(key) = value.map_key() {
                     if !self.graphics.read_key(key) {
                         self.registers.advance_pc();
                     }

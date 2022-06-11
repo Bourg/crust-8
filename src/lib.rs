@@ -1,5 +1,5 @@
-pub mod graphics;
 pub mod instruction;
+pub mod io;
 pub mod machine;
 pub mod memory;
 pub mod random;

@@ -123,7 +123,10 @@ pub enum Instruction {
     StoreDelayInX {
         register: u8,
     },
-    // TODO Fx0A - LD Vx, K (Input, wait for keypress, store in VX)
+    // FX0A
+    StorePressX {
+        register: u8,
+    },
     // FX15
     SetDelayToX {
         register: u8,
@@ -270,6 +273,7 @@ impl Instruction {
 
                 match right {
                     0x07 => Ok(StoreDelayInX { register }),
+                    0x0A => Ok(StorePressX { register }),
                     0x15 => Ok(SetDelayToX { register }),
                     0x18 => Ok(SetSoundToX { register }),
                     0x1E => Ok(AddIX { register }),
@@ -338,6 +342,7 @@ impl Instruction {
             SkipPressedX { register } => [u4_to_u8(0xE, *register), 0x9E],
             SkipNotPressedX { register } => [u4_to_u8(0xE, *register), 0xA1],
             StoreDelayInX { register } => [u4_to_u8(0xF, *register), 0x07],
+            StorePressX { register } => [u4_to_u8(0xF, *register), 0x0A],
             SetDelayToX { register } => [u4_to_u8(0xF, *register), 0x15],
             SetSoundToX { register } => [u4_to_u8(0xF, *register), 0x18],
             AddIX { register } => from_u4s(0xF, *register, 0x1, 0xE),
@@ -534,6 +539,7 @@ mod tests {
         (0xE29E, SkipPressedX { register: 0x2 }),
         (0xE3A1, SkipNotPressedX { register: 0x3 }),
         (0xFA07, StoreDelayInX { register: 0xA }),
+        (0xFB0A, StorePressX { register: 0xB }),
         (0xFC15, SetDelayToX { register: 0xC }),
         (0xFD18, SetSoundToX { register: 0xD }),
         (0xFE1E, AddIX { register: 0xE }),

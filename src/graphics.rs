@@ -3,7 +3,11 @@ use piston::input::RenderEvent;
 use piston::RenderArgs;
 use std::error;
 use std::fmt;
+use std::ops::DerefMut;
+use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
+
+// TODO rename to io / split graphics and keys
 
 pub const WIDTH_PX: usize = 64;
 pub const HEIGHT_PX: usize = 32;
@@ -75,10 +79,12 @@ impl Key {
             piston::input::Key::X => Some(Key::D0),
             piston::input::Key::C => Some(Key::B),
             piston::input::Key::V => Some(Key::F),
+            piston::input::Key::J => Some(Key::A),
             _ => None,
         }
     }
 
+    // TODO this should take a reference
     fn from_button(button: piston::Button) -> Option<Key> {
         match button {
             piston::Button::Keyboard(key) => Self::from_key(key),
@@ -93,6 +99,8 @@ pub trait Chip8IO {
     fn draw(&mut self, x: u8, y: u8, sprite: &[u8]) -> bool;
 
     fn read_key(&mut self, key: Key) -> bool;
+
+    fn block_for_key(&mut self, sender: Sender<Key>);
 }
 
 pub struct HeadlessIO {
@@ -188,18 +196,26 @@ impl Chip8IO for HeadlessIO {
     fn read_key(&mut self, key: Key) -> bool {
         self.key_buffer.get(key as usize).cloned().unwrap_or(false)
     }
+
+    // TODO is there anything that can be done here?
+    fn block_for_key(&mut self, _sender: Sender<Key>) {
+        panic!("Cannot block for headless input");
+    }
 }
 
 // TODO I'm really not super happy with the ownership structure for window graphics
 #[derive(Clone)]
 pub struct PistonGraphics {
     headless: Arc<Mutex<HeadlessIO>>,
+    // TODO this is gross
+    key_interrupt: Arc<Mutex<Option<Sender<Key>>>>,
 }
 
 impl PistonGraphics {
     pub fn new() -> PistonGraphics {
         PistonGraphics {
             headless: Arc::new(Mutex::new(HeadlessIO::new())),
+            key_interrupt: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -250,6 +266,16 @@ impl PistonGraphics {
             piston::input::PressEvent::press(&e, |button| {
                 if let Some(key) = Key::from_button(button) {
                     self.headless.lock().unwrap().key_buffer[key as usize] = true;
+
+                    // TODO This is so sloppy
+                    let maybe_locked_mutex = self.key_interrupt.lock();
+                    let mut locked_mutex = maybe_locked_mutex.unwrap();
+                    let maybe_sender: &mut Option<Sender<Key>> = locked_mutex.deref_mut();
+
+                    if let Some(sender) = maybe_sender {
+                        sender.send(key).unwrap();
+                        *maybe_sender = None;
+                    }
                 }
             });
             piston::input::ReleaseEvent::release(&e, |button| {
@@ -279,6 +305,10 @@ impl Chip8IO for PistonGraphics {
 
     fn read_key(&mut self, key: Key) -> bool {
         self.headless.lock().unwrap().read_key(key)
+    }
+
+    fn block_for_key(&mut self, sender: Sender<Key>) {
+        *self.key_interrupt.lock().unwrap() = Some(sender);
     }
 }
 

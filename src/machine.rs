@@ -2,6 +2,7 @@ use crate::instruction::Instruction;
 use crate::{graphics, random};
 use crate::{memory, settings};
 use crate::{register, timer};
+use std::sync::mpsc;
 use std::{error, thread};
 
 // Chip8 runs instructions at 500Hz
@@ -82,6 +83,10 @@ where
             self.settings.on_unrecognized_instruction,
         ) {
             (Ok(instruction), _) => {
+                println!(
+                    "Executing instruction {:#06X} at address {:#05X}",
+                    instruction_u16, self.registers.pc
+                );
                 self.step(&instruction);
                 Ok(())
             }
@@ -278,6 +283,15 @@ where
             // TODO untested
             Instruction::StoreDelayInX { register } => {
                 self.registers.set_register(*register, self.registers.dt);
+
+                self.registers.advance_pc();
+            }
+            // TODO untested
+            Instruction::StorePressX { register } => {
+                let (tx, rx) = mpsc::channel();
+                self.graphics.block_for_key(tx);
+                let key = rx.recv().unwrap();
+                self.registers.set_register(*register, key as u8);
 
                 self.registers.advance_pc();
             }

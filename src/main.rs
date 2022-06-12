@@ -1,20 +1,20 @@
 use crust_8::io::piston_io;
-use crust_8::settings::ClockSpeed;
-use crust_8::{machine, settings, timer};
+use crust_8::{cli, machine, settings, timer};
 use std::sync::mpsc;
-use std::{env, fs, thread, time};
+use std::{fs, thread, time};
+
+use clap::Parser;
 
 fn main() {
-    // TODO error handling, more isolated CLI logic
-    let args: Vec<String> = env::args().collect();
-    let filename = args.get(1).unwrap();
-    let file = fs::File::open(filename).unwrap();
+    let cli = cli::Cli::parse();
+
+    let file = fs::File::open(cli.rom_path).unwrap();
 
     // Create two handles to the graphics implementation
-    let window_io = piston_io::PistonIO::new(piston_io::JAZZ_COLORS);
+    let window_io = piston_io::PistonIO::new(cli.color_scheme.into());
     let machine_io = window_io.clone();
 
-    let settings = settings::Settings::default().with_clock_speed(ClockSpeed::Limited {
+    let settings = settings::Settings::default().with_clock_speed(settings::ClockSpeed::Limited {
         instruction_time: time::Duration::from_millis(2),
     });
 

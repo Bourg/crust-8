@@ -398,7 +398,7 @@ fn to_decimal_digits(value: u8) -> (u8, u8, u8) {
 mod tests {
     use super::*;
     use crate::instruction::Instruction::*;
-    use crate::io::implementations::headless::HeadlessIO;
+    use crate::io::headless_io::HeadlessIO;
 
     // Convenience constructors for test machines
     impl Machine<HeadlessIO, random::FixedRandomSource, timer::InstructionTimer> {

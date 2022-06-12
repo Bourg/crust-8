@@ -1,4 +1,4 @@
-use crust_8::io::implementations::piston::PistonIO;
+use crust_8::io::piston_io::PistonIO;
 use crust_8::settings::ClockSpeed;
 use crust_8::{machine, settings, timer};
 use std::{env, fs, thread, time};

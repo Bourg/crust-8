@@ -1,14 +1,12 @@
 use crust_8::io::piston_io;
 use crust_8::{cli, machine, settings, timer};
 use std::sync::mpsc;
-use std::{fs, thread, time};
+use std::{thread, time};
 
 use clap::Parser;
 
 fn main() {
     let cli = cli::Cli::parse();
-
-    let file = fs::File::open(cli.rom_path).unwrap();
 
     // Create two handles to the graphics implementation
     let window_io = piston_io::PistonIO::new(cli.color_scheme.into());
@@ -29,7 +27,7 @@ fn main() {
         );
 
         // TODO better error handling
-        machine.load_program(file).unwrap();
+        machine.load_program(cli.rom).unwrap();
 
         // Wait to get the ready message from the UI thread
         rx.recv().unwrap();

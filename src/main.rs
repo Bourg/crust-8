@@ -18,7 +18,6 @@ fn main() {
         instruction_time: time::Duration::from_millis(2),
     });
 
-    // TODO use a channel to send a ready message from the IO since it takes a while to init
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {

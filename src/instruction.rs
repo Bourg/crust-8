@@ -182,7 +182,7 @@ impl Display for InstructionError {
                 size_bytes
             ),
             InstructionError::UnsupportedInstruction(instruction) => {
-                write!(f, "unsupported instruction {:#06X}", instruction, )
+                write!(f, "unsupported instruction {:#06X}", instruction,)
             }
         }
     }
@@ -378,7 +378,6 @@ impl Instruction {
             AddIX { register } => from_u4s(0xF, *register, 0x1, 0xE),
             StoreSpriteX { register } => from_u4s(0xF, *register, 0x2, 0x9),
             StoreDecimal { register } => from_u4s(0xF, *register, 0x3, 0x3),
-            // TODO find the canonical names for these instructions, names are getting twisted
             WriteToMemory { max_register } => from_u4s(0xF, *max_register, 0x5, 0x5),
             ReadFromMemory { max_register } => from_u4s(0xF, *max_register, 0x6, 0x5),
         }
@@ -600,7 +599,10 @@ mod tests {
         assert_eq!(Err(InstructionError::InvalidSize(3)), long);
 
         let unsupported = Instruction::from_bytes(&[0xF1, 0x31]);
-        assert_eq!(Err(InstructionError::UnsupportedInstruction(0xF131)), unsupported);
+        assert_eq!(
+            Err(InstructionError::UnsupportedInstruction(0xF131)),
+            unsupported
+        );
     }
 
     #[test]
@@ -642,8 +644,4 @@ mod tests {
         assert_eq!([0, 0], from_u12(0, 0));
         assert_eq!([0xAB, 0xCD], from_u12(0xA, 0xFBCD));
     }
-
-    // TODO test cases:
-    // - What should happen with carrying operations that are themselves operating on the carry?
-    //   For example, subtracting register 0x1 from 0xF when 0x1 is larger - what should 0xF be?
 }

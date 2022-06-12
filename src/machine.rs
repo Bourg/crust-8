@@ -1027,4 +1027,6 @@ mod tests {
     // - All Press instructions
     // - All Delay instructions
     // - All Sound instructions
+    // - What should happen with carrying operations that are themselves operating on the carry?
+    //   For example, subtracting register 0x1 from 0xF when 0x1 is larger - what should 0xF be?
 }

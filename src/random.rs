@@ -34,8 +34,6 @@ where
     }
 }
 
-// TODO need a true random source
-
 #[cfg(test)]
 mod tests {
     use super::*;

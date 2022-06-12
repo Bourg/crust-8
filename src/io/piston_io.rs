@@ -33,6 +33,11 @@ pub const WHITE_ON_BLACK: ColorScheme = ColorScheme {
     foreground: [1.0, 1.0, 1.0, 1.0],
 };
 
+pub const JAZZ_COLORS: ColorScheme = ColorScheme {
+    background: [19.0 / 256.0, 4.0 / 256.0, 28.0 / 256.0, 1.0],
+    foreground: [155.0 / 256.0, 199.0 / 256.0, 232.0 / 256.0, 1.0],
+};
+
 struct PistonIOInternal {
     color_scheme: ColorScheme,
     graphics_buffer: GraphicsBuffer,

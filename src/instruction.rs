@@ -1,8 +1,9 @@
 use crate::memory;
+use std::error::Error;
+use std::fmt::{Display, Formatter};
 use Instruction::*;
 
-// TODO can remove Clone here if not for the bad error handling in machine
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Instruction {
     // 00E0
     ClearScreen,
@@ -159,10 +160,42 @@ pub enum Instruction {
 
 type InstructionBytes = [u8; 2];
 
+#[derive(Debug)]
+pub enum InstructionError {
+    InvalidSize(usize),
+    UnsupportedInstruction(u16),
+}
+
+impl InstructionError {
+    fn unsupported_instruction(left: u8, right: u8) -> InstructionError {
+        let instruction = ((left as u16) << 8) + right as u16;
+        InstructionError::UnsupportedInstruction(instruction)
+    }
+}
+
+impl Display for InstructionError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InstructionError::InvalidSize(size_bytes) => write!(
+                f,
+                "instructions must be exactly 2 bytes, but was {} bytes",
+                size_bytes
+            ),
+            InstructionError::UnsupportedInstruction(instruction) => {
+                write!(f, "unsupported instruction {:#06X}", instruction,)
+            }
+        }
+    }
+}
+
+impl Error for InstructionError {}
+
+type InstructionResult = Result<Instruction, InstructionError>;
+
 impl Instruction {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Instruction, String> {
+    pub fn from_bytes(bytes: &[u8]) -> InstructionResult {
         if bytes.len() != 2 {
-            return Err(String::from("Instructions must be exactly 2 bytes"));
+            return Err(InstructionError::InvalidSize(bytes.len()));
         }
 
         let left = bytes[0];
@@ -175,7 +208,7 @@ impl Instruction {
                 } else if left == 0 && right == 0xEE {
                     Ok(Return)
                 } else {
-                    err_unsupported_instruction(left, right)
+                    Err(InstructionError::unsupported_instruction(left, right))
                 }
             }
             1 => Ok(JumpNNN {
@@ -199,7 +232,7 @@ impl Instruction {
                         register_y: right >> 4,
                     })
                 } else {
-                    err_unsupported_instruction(left, right)
+                    Err(InstructionError::unsupported_instruction(left, right))
                 }
             }
             6 => {
@@ -228,7 +261,7 @@ impl Instruction {
                     6 => Ok(ShrXY { target, source }),
                     7 => Ok(SUBXYReverse { target, source }),
                     0xE => Ok(ShlXY { target, source }),
-                    _ => err_unsupported_instruction(left, right),
+                    _ => Err(InstructionError::unsupported_instruction(left, right)),
                 }
             }
             9 => {
@@ -238,7 +271,7 @@ impl Instruction {
                         register_y: right >> 4,
                     })
                 } else {
-                    err_unsupported_instruction(left, right)
+                    Err(InstructionError::unsupported_instruction(left, right))
                 }
             }
             0xA => {
@@ -265,7 +298,7 @@ impl Instruction {
                 match right {
                     0x9E => Ok(SkipPressedX { register }),
                     0xA1 => Ok(SkipNotPressedX { register }),
-                    _ => err_unsupported_instruction(left, right),
+                    _ => Err(InstructionError::unsupported_instruction(left, right)),
                 }
             }
             0xF => {
@@ -285,13 +318,10 @@ impl Instruction {
                     0x65 => Ok(ReadFromMemory {
                         max_register: left & 0xF,
                     }),
-                    _ => err_unsupported_instruction(left, right),
+                    _ => Err(InstructionError::unsupported_instruction(left, right)),
                 }
             }
-            _ => Err(format!(
-                "Unsupported instruction {:#06X}",
-                ((left as u16) << 8) + right as u16
-            )),
+            _ => Err(InstructionError::unsupported_instruction(left, right)),
         }
     }
 
@@ -374,14 +404,6 @@ impl memory::ProgramLoader for &Vec<Instruction> {
 
         bytes_slice.load_into_ram(ram);
     }
-}
-
-// TODO maybe should just have an error type
-fn err_unsupported_instruction<T>(left: u8, right: u8) -> Result<T, String> {
-    Err(format!(
-        "Unsupported instruction {:#06X}",
-        ((left as u16) << 8) + right as u16
-    ))
 }
 
 fn from_u4s(a: u8, b: u8, c: u8, d: u8) -> InstructionBytes {

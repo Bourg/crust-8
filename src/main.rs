@@ -14,11 +14,9 @@ fn main() {
     let window_io = PistonIO::new(WHITE_ON_BLACK);
     let machine_io = window_io.clone();
 
-    let settings = settings::Settings::default()
-        .with_clock_speed(ClockSpeed::Limited {
-            instruction_time: time::Duration::from_millis(2),
-        })
-        .with_on_unrecognized_instruction(settings::OnUnrecognizedInstruction::Skip);
+    let settings = settings::Settings::default().with_clock_speed(ClockSpeed::Limited {
+        instruction_time: time::Duration::from_millis(2),
+    });
 
     // TODO use a channel to send a ready message from the IO since it takes a while to init
     let (tx, rx) = mpsc::channel();

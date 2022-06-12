@@ -1,10 +1,10 @@
-use crate::instruction::Instruction;
+use crate::instruction::{Instruction, InstructionError};
 use crate::io::chip8_io;
 use crate::io::input::MapKey;
 use crate::random;
 use crate::{memory, settings};
 use crate::{register, timer};
-use std::{error, thread};
+use std::thread;
 
 // Chip8 runs instructions at 500Hz
 // The timers decrement at 60Hz
@@ -26,7 +26,7 @@ enum FlagSideEffect {
     SET(bool),
 }
 
-type RunResult = Result<(), Box<dyn error::Error>>;
+type RunResult = Result<(), InstructionError>;
 
 impl<G, R, Tmr> Machine<G, R, Tmr>
 where
@@ -65,9 +65,7 @@ where
 
     fn step_program(&mut self) -> RunResult {
         let instruction_bytes = self.ram.get_instruction(self.registers.pc);
-        let instruction_u16 = ((instruction_bytes[0] as u16) << 8) + instruction_bytes[1] as u16;
-
-        let instruction = Instruction::from_bytes(instruction_bytes);
+        let instruction = Instruction::from_bytes(instruction_bytes)?;
 
         // TODO better place to apply clock speed?
         // TODO account for the actual amount of time the instruction took?
@@ -79,30 +77,8 @@ where
             thread::sleep(instruction_time);
         }
 
-        match (
-            instruction.clone(),
-            self.settings.on_unrecognized_instruction,
-        ) {
-            (Ok(instruction), _) => {
-                self.step(&instruction);
-                Ok(())
-            }
-            (Err(_), settings::OnUnrecognizedInstruction::Skip) => {
-                // TODO remove printing
-                println!(
-                    "Unrecognized instruction {:#06X} at address {:#05X}",
-                    instruction_u16, self.registers.pc
-                );
-                self.registers.advance_pc();
-                Ok(())
-            }
-            (Err(_), settings::OnUnrecognizedInstruction::Halt) => {
-                // TODO no idea why I have to do this but I can't return String as Error
-                // But for some reason, using ? on the result works
-                instruction?;
-                Ok(())
-            }
-        }
+        self.step(&instruction);
+        Ok(())
     }
 
     fn step(&mut self, instruction: &Instruction) {
@@ -111,7 +87,6 @@ where
                 self.graphics.clear();
                 self.registers.advance_pc();
             }
-            // TODO this is untested
             Instruction::Return => {
                 self.registers.stack_return();
             }
@@ -121,7 +96,6 @@ where
             Instruction::CallNNN { address } => {
                 self.registers.stack_call(*address);
             }
-            // TODO this is missing test coverage
             Instruction::SkipEqXNN { register, value } => {
                 let register_value = self.registers.get_register(*register);
 
@@ -130,7 +104,6 @@ where
                     self.registers.advance_pc();
                 }
             }
-            // TODO this is missing test coverage
             Instruction::SkipNeXNN { register, value } => {
                 let register_value = self.registers.get_register(*register);
 
@@ -139,7 +112,6 @@ where
                     self.registers.advance_pc();
                 }
             }
-            // TODO this is missing test coverage
             Instruction::SkipEqXY {
                 register_x,
                 register_y,
@@ -212,7 +184,6 @@ where
                     (sv << 1, FlagSideEffect::SET(sv & 0x80 != 0))
                 })
             }
-            // TODO this is missing test coverage
             Instruction::SkipNeXY {
                 register_x,
                 register_y,
@@ -257,7 +228,6 @@ where
                 self.registers.set_flag(if flipped { 1 } else { 0 });
                 self.registers.advance_pc();
             }
-            // TODO untested
             Instruction::SkipPressedX { register } => {
                 let value = self.registers.get_register(*register);
                 if let Some(key) = value.map_key() {
@@ -267,7 +237,6 @@ where
                 }
                 self.registers.advance_pc();
             }
-            // TODO untested
             Instruction::SkipNotPressedX { register } => {
                 let value = self.registers.get_register(*register);
                 if let Some(key) = value.map_key() {
@@ -277,13 +246,11 @@ where
                 }
                 self.registers.advance_pc();
             }
-            // TODO untested
             Instruction::StoreDelayInX { register } => {
                 self.registers.set_register(*register, self.registers.dt);
 
                 self.registers.advance_pc();
             }
-            // TODO untested
             Instruction::StorePressX { register } => {
                 if let Some(key) = self.graphics.block_for_key() {
                     self.registers.set_register(*register, key as u8);
@@ -291,7 +258,6 @@ where
 
                 self.registers.advance_pc();
             }
-            // TODO untested
             Instruction::SetDelayToX { register } => {
                 let value = self.registers.get_register(*register);
 
@@ -299,7 +265,6 @@ where
 
                 self.registers.advance_pc();
             }
-            // TODO untested
             Instruction::SetSoundToX { register } => {
                 let value = self.registers.get_register(*register);
 
@@ -1054,6 +1019,12 @@ mod tests {
         assert_eq!((2, 5, 5), to_decimal_digits(255));
     }
 
-    // TODO graphics integration test
     // TODO split the pub tests into integration test files
+    // TODO missing tests:
+    // - graphics integration test
+    // - Return instruction
+    // - All Skip instructions
+    // - All Press instructions
+    // - All Delay instructions
+    // - All Sound instructions
 }

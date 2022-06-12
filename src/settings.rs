@@ -25,20 +25,10 @@ pub enum MemoryMode {
 }
 
 #[derive(Copy, Clone)]
-pub enum OnUnrecognizedInstruction {
-    // Halt execution exceptionally
-    Halt,
-
-    // Skip the instruction and continue execution
-    Skip,
-}
-
-#[derive(Copy, Clone)]
 pub struct Settings {
     pub bit_shift_mode: BitShiftMode,
     pub clock_speed: ClockSpeed,
     pub memory_mode: MemoryMode,
-    pub on_unrecognized_instruction: OnUnrecognizedInstruction,
 }
 
 impl Settings {
@@ -56,14 +46,6 @@ impl Settings {
         self.memory_mode = memory_mode;
         self
     }
-
-    pub fn with_on_unrecognized_instruction(
-        mut self,
-        on_unrecognized_instruction: OnUnrecognizedInstruction,
-    ) -> Self {
-        self.on_unrecognized_instruction = on_unrecognized_instruction;
-        self
-    }
 }
 
 impl Default for Settings {
@@ -73,7 +55,6 @@ impl Default for Settings {
             bit_shift_mode: BitShiftMode::OneRegister,
             clock_speed: ClockSpeed::Unlimited,
             memory_mode: MemoryMode::NoAdvance,
-            on_unrecognized_instruction: OnUnrecognizedInstruction::Halt,
         }
     }
 }

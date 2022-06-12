@@ -2,6 +2,7 @@ use crate::io::chip8_io::Chip8IO;
 use crate::io::graphics::{GraphicsBuffer, SpriteData};
 use crate::io::input::{Key as Chip8Key, Keypad, MapKey};
 use glutin_window::OpenGL;
+use graphics::types;
 use opengl_graphics::GlGraphics;
 use piston::input::Key as PistonKey;
 use piston::{ButtonArgs, ButtonEvent, ButtonState, Event, RenderArgs, RenderEvent};
@@ -17,15 +18,32 @@ pub struct PistonIO {
     internal: Arc<Mutex<PistonIOInternal>>,
 }
 
+pub struct ColorScheme {
+    pub background: types::Color,
+    pub foreground: types::Color,
+}
+
+pub const BLACK_ON_WHITE: ColorScheme = ColorScheme {
+    background: [1.0, 1.0, 1.0, 1.0],
+    foreground: [0.0, 0.0, 0.0, 1.0],
+};
+
+pub const WHITE_ON_BLACK: ColorScheme = ColorScheme {
+    background: [0.0, 0.0, 0.0, 1.0],
+    foreground: [1.0, 1.0, 1.0, 1.0],
+};
+
 struct PistonIOInternal {
+    color_scheme: ColorScheme,
     graphics_buffer: GraphicsBuffer,
     keypad: Keypad,
     interrupt_channel: Option<Sender<Chip8Key>>,
 }
 
 impl PistonIOInternal {
-    pub fn new() -> Self {
+    pub fn new(color_scheme: ColorScheme) -> Self {
         PistonIOInternal {
+            color_scheme,
             graphics_buffer: GraphicsBuffer::new(),
             keypad: Keypad::new(),
             interrupt_channel: None,
@@ -61,7 +79,7 @@ impl PistonIOInternal {
 
     fn render(&self, gl: &mut GlGraphics, args: &RenderArgs) {
         gl.draw(args.viewport(), |c, gl| {
-            graphics::clear([1.0, 1.0, 1.0, 1.0], gl);
+            graphics::clear(self.color_scheme.background, gl);
 
             // TODO iterator over the pixels?
             for y in 0..self.graphics_buffer.height() {
@@ -73,7 +91,7 @@ impl PistonIOInternal {
                         let start_y = 10.0 * y as f64;
 
                         graphics::rectangle(
-                            [0.0, 0.0, 0.0, 1.0],
+                            self.color_scheme.foreground,
                             [start_x, start_y, 10.0, 10.0],
                             c.transform,
                             gl,
@@ -111,8 +129,8 @@ impl Chip8IO for PistonIO {
 }
 
 impl PistonIO {
-    pub fn new() -> Self {
-        let internal = PistonIOInternal::new();
+    pub fn new(color_scheme: ColorScheme) -> Self {
+        let internal = PistonIOInternal::new(color_scheme);
 
         PistonIO {
             internal: Arc::new(Mutex::new(internal)),

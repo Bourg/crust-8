@@ -6,11 +6,6 @@ use crate::{memory, settings};
 use crate::{register, timer};
 use std::thread;
 
-// Chip8 runs instructions at 500Hz
-// The timers decrement at 60Hz
-// Therefore, we can decrement timers ~ every 8 instructions
-// This isn't perfect, but can revisit later
-
 pub struct Machine<G: chip8_io::Chip8IO, R: random::RandomSource, T: timer::Timer> {
     ram: memory::RAM,
     registers: register::Registers,

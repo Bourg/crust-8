@@ -1,10 +1,10 @@
 use crate::instruction::Instruction;
-use crate::io::graphics;
-use crate::io::key::MapKey;
+use crate::io::chip8_io;
+use crate::io::input::MapKey;
 use crate::random;
 use crate::{memory, settings};
 use crate::{register, timer};
-use std::sync::mpsc;
+use std::error::Error;
 use std::{error, thread};
 
 // Chip8 runs instructions at 500Hz
@@ -12,7 +12,7 @@ use std::{error, thread};
 // Therefore, we can decrement timers ~ every 8 instructions
 // This isn't perfect, but can revisit later
 
-pub struct Machine<G: graphics::Chip8IO, R: random::RandomSource, T: timer::Timer> {
+pub struct Machine<G: chip8_io::Chip8IO, R: random::RandomSource, T: timer::Timer> {
     ram: memory::RAM,
     registers: register::Registers,
     settings: settings::Settings,
@@ -31,7 +31,7 @@ type RunResult = Result<(), Box<dyn error::Error>>;
 
 impl<G, R, Tmr> Machine<G, R, Tmr>
 where
-    G: graphics::Chip8IO,
+    G: chip8_io::Chip8IO,
     R: random::RandomSource,
     Tmr: timer::Timer,
 {
@@ -106,7 +106,8 @@ where
         }
     }
 
-    fn step(&mut self, instruction: &Instruction) {
+    // TODO figure out how to avoid the dyn errors
+    fn step(&mut self, instruction: &Instruction) -> Result<(), Box<dyn Error>> {
         match instruction {
             Instruction::ClearScreen => {
                 self.graphics.clear();
@@ -253,7 +254,7 @@ where
                 let sprite_address = self.registers.i;
                 let sprite = self.ram.get_sprite_at_address(sprite_address, *bytes);
 
-                let flipped = self.graphics.draw(x, y, sprite);
+                let flipped = self.graphics.draw(x, y, sprite)?;
 
                 self.registers.set_flag(if flipped { 1 } else { 0 });
                 self.registers.advance_pc();
@@ -262,7 +263,7 @@ where
             Instruction::SkipPressedX { register } => {
                 let value = self.registers.get_register(*register);
                 if let Some(key) = value.map_key() {
-                    if self.graphics.read_key(key) {
+                    if self.graphics.key_pressed(key)? {
                         self.registers.advance_pc();
                     }
                 }
@@ -272,7 +273,7 @@ where
             Instruction::SkipNotPressedX { register } => {
                 let value = self.registers.get_register(*register);
                 if let Some(key) = value.map_key() {
-                    if !self.graphics.read_key(key) {
+                    if !self.graphics.key_pressed(key)? {
                         self.registers.advance_pc();
                     }
                 }
@@ -286,9 +287,7 @@ where
             }
             // TODO untested
             Instruction::StorePressX { register } => {
-                let (tx, rx) = mpsc::channel();
-                self.graphics.block_for_key(tx);
-                let key = rx.recv().unwrap();
+                let key = self.graphics.block_for_key()?;
                 self.registers.set_register(*register, key as u8);
 
                 self.registers.advance_pc();
@@ -359,7 +358,9 @@ where
 
                 self.registers.advance_pc();
             }
-        }
+        };
+
+        Ok(())
     }
 
     fn op<T>(&mut self, target: &u8, source: &u8, op: T)
@@ -400,12 +401,12 @@ fn to_decimal_digits(value: u8) -> (u8, u8, u8) {
 mod tests {
     use super::*;
     use crate::instruction::Instruction::*;
+    use crate::io::implementations::headless::HeadlessIO;
 
     // Convenience constructors for test machines
-    impl Machine<graphics::HeadlessIO, random::FixedRandomSource, timer::InstructionTimer> {
+    impl Machine<HeadlessIO, random::FixedRandomSource, timer::InstructionTimer> {
         pub fn new_headless(
-        ) -> Machine<graphics::HeadlessIO, random::FixedRandomSource, timer::InstructionTimer>
-        {
+        ) -> Machine<HeadlessIO, random::FixedRandomSource, timer::InstructionTimer> {
             Machine::new_headless_with_settings(
                 random::FixedRandomSource::new(vec![0]),
                 settings::Settings::default(),
@@ -415,12 +416,11 @@ mod tests {
         pub fn new_headless_with_settings(
             random: random::FixedRandomSource,
             settings: settings::Settings,
-        ) -> Machine<graphics::HeadlessIO, random::FixedRandomSource, timer::InstructionTimer>
-        {
+        ) -> Machine<HeadlessIO, random::FixedRandomSource, timer::InstructionTimer> {
             Machine {
                 ram: memory::RAM::new(),
                 registers: register::Registers::new(),
-                graphics: graphics::HeadlessIO::new(),
+                graphics: HeadlessIO::new(),
                 timer: timer::InstructionTimer::new(),
                 random,
                 settings,

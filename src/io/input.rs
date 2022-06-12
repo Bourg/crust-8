@@ -1,8 +1,10 @@
+use std::collections::HashSet;
+
 pub const NUMBER_OF_KEYS: usize = 0x10;
 
 /// Keys on a Chip8 Keyboard
 /// Each value is the numeric value of the key as a hexadecimal digit
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Key {
     D0 = 0,
     D1 = 1,
@@ -20,6 +22,30 @@ pub enum Key {
     D = 0xD,
     E = 0xE,
     F = 0xF,
+}
+
+pub struct Keypad {
+    pressed: HashSet<Key>,
+}
+
+impl Keypad {
+    pub fn new() -> Keypad {
+        Keypad {
+            pressed: HashSet::new(),
+        }
+    }
+
+    pub fn press(&mut self, key: Key) {
+        self.pressed.insert(key);
+    }
+
+    pub fn release(&mut self, key: &Key) {
+        self.pressed.remove(key);
+    }
+
+    pub fn is_pressed(&self, key: &Key) -> bool {
+        self.pressed.contains(key)
+    }
 }
 
 /// Trait for things that can be mapped to a Chip8 key
@@ -75,5 +101,25 @@ mod tests {
                 assert!(false);
             }
         }
+    }
+
+    #[test]
+    fn test_keypad() {
+        let mut keypad = Keypad::new();
+
+        assert_eq!(false, keypad.is_pressed(&D0));
+        assert_eq!(false, keypad.is_pressed(&D1));
+
+        keypad.press(D0);
+        assert_eq!(true, keypad.is_pressed(&D0));
+        assert_eq!(false, keypad.is_pressed(&D1));
+
+        keypad.press(D0);
+        assert_eq!(true, keypad.is_pressed(&D0));
+        assert_eq!(false, keypad.is_pressed(&D1));
+
+        keypad.release(&D0);
+        assert_eq!(false, keypad.is_pressed(&D0));
+        assert_eq!(false, keypad.is_pressed(&D1));
     }
 }

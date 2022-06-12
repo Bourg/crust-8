@@ -1,4 +1,4 @@
-use crust_8::io::graphics;
+use crust_8::io::chip8_io;
 use crust_8::settings::ClockSpeed;
 use crust_8::{machine, settings, timer};
 use std::{env, fs, thread, time};
@@ -10,7 +10,7 @@ fn main() {
     let file = fs::File::open(filename).unwrap();
 
     // Create two handles to the graphics implementation
-    let window_graphics = graphics::PistonGraphics::new();
+    let window_graphics = chip8_io::PistonGraphics::new();
     let machine_graphics = window_graphics.clone();
 
     let settings = settings::Settings::default()

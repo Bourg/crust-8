@@ -1,2 +1,4 @@
+pub mod chip8_io;
 pub mod graphics;
-pub mod key;
+pub mod implementations;
+pub mod input;

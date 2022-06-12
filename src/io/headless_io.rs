@@ -1,15 +1,19 @@
 use crate::io::chip8_io::Chip8IO;
 use crate::io::graphics::{GraphicsBuffer, SpriteData};
-use crate::io::input::Key;
+use crate::io::input::{Key, Keypad};
 
 pub struct HeadlessIO {
-    graphics_buffer: GraphicsBuffer,
+    pub graphics_buffer: GraphicsBuffer,
+    pub keypad: Keypad,
+    pub interrupt_key: Option<Key>,
 }
 
 impl HeadlessIO {
     pub fn new() -> Self {
         HeadlessIO {
             graphics_buffer: GraphicsBuffer::new(),
+            keypad: Keypad::new(),
+            interrupt_key: None,
         }
     }
 }
@@ -23,14 +27,11 @@ impl Chip8IO for HeadlessIO {
         self.graphics_buffer.draw(x, y, sprite)
     }
 
-    fn key_pressed(&mut self, _key: Key) -> bool {
-        // TODO can allow a preset key layout?
-        panic!("Cannot read keys for headless inputs");
+    fn key_pressed(&mut self, key: Key) -> bool {
+        self.keypad.is_pressed(&key)
     }
 
-    // TODO is there anything that can be done here?
     fn block_for_key(&mut self) -> Option<Key> {
-        // TODO can allow a pre-programmed string of inputs?
-        panic!("Cannot block for headless input");
+        self.interrupt_key
     }
 }

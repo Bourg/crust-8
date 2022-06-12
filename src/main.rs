@@ -1,6 +1,7 @@
 use crust_8::io::piston_io::PistonIO;
 use crust_8::settings::ClockSpeed;
 use crust_8::{machine, settings, timer};
+use std::sync::mpsc;
 use std::{env, fs, thread, time};
 
 fn main() {
@@ -20,6 +21,7 @@ fn main() {
         .with_on_unrecognized_instruction(settings::OnUnrecognizedInstruction::Skip);
 
     // TODO use a channel to send a ready message from the IO since it takes a while to init
+    let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {
         let mut machine = machine::Machine::new(
@@ -33,6 +35,9 @@ fn main() {
         // TODO better error handling
         machine.load_program(file).unwrap();
 
+        // Wait to get the ready message from the UI thread
+        rx.recv().unwrap();
+
         let completion_message = match machine.run_program() {
             Ok(()) => String::from("Machine completed successfully"),
             Err(e) => format!("Machine completed exceptionally: {:?}", e),
@@ -40,5 +45,6 @@ fn main() {
         println!("{}", completion_message);
     });
 
-    window_io.open_window();
+    // Open the window and post a ready message
+    window_io.open_window(|| tx.send(()).unwrap());
 }

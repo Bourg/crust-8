@@ -119,7 +119,10 @@ impl PistonIO {
         }
     }
 
-    pub fn open_window(self) {
+    pub fn open_window<F>(self, on_ready: F)
+    where
+        F: FnOnce(),
+    {
         let opengl = OpenGL::V4_5;
 
         let mut window: glutin_window::GlutinWindow =
@@ -133,6 +136,10 @@ impl PistonIO {
         let mut gl = GlGraphics::new(opengl);
 
         let mut events = piston::Events::new(piston::EventSettings::new());
+
+        if let Some(_) = events.next(&mut window) {
+            on_ready();
+        }
 
         while let Some(e) = events.next(&mut window) {
             // TODO can probably be smarter about not duplicating these checks

@@ -8,5 +8,5 @@ pub trait Chip8IO {
 
     fn key_pressed(&mut self, key: Key) -> bool;
 
-    fn block_for_key(&mut self) -> Key;
+    fn block_for_key(&mut self) -> Option<Key>;
 }

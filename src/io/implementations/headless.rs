@@ -29,7 +29,7 @@ impl Chip8IO for HeadlessIO {
     }
 
     // TODO is there anything that can be done here?
-    fn block_for_key(&mut self) -> Key {
+    fn block_for_key(&mut self) -> Option<Key> {
         // TODO can allow a pre-programmed string of inputs?
         panic!("Cannot block for headless input");
     }

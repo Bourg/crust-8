@@ -37,7 +37,8 @@ impl PistonIOInternal {
             (ButtonState::Press, Some(key)) => {
                 self.keypad.press(key);
                 if let Some(channel) = &mut self.interrupt_channel {
-                    channel.send(key).unwrap();
+                    // Ignore a failed send
+                    channel.send(key).unwrap_or(());
                     self.interrupt_channel = None;
                 }
             }
@@ -101,11 +102,11 @@ impl Chip8IO for PistonIO {
         self.internal.lock().unwrap().keypad.is_pressed(&key)
     }
 
-    fn block_for_key(&mut self) -> Chip8Key {
+    fn block_for_key(&mut self) -> Option<Chip8Key> {
         let (tx, rx) = mpsc::channel();
 
         self.internal.lock().unwrap().interrupt_channel = Some(tx);
-        rx.recv().unwrap()
+        rx.recv().ok()
     }
 }
 

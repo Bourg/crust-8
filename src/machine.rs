@@ -285,8 +285,9 @@ where
             }
             // TODO untested
             Instruction::StorePressX { register } => {
-                let key = self.graphics.block_for_key();
-                self.registers.set_register(*register, key as u8);
+                if let Some(key) = self.graphics.block_for_key() {
+                    self.registers.set_register(*register, key as u8);
+                }
 
                 self.registers.advance_pc();
             }

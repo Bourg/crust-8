@@ -160,7 +160,7 @@ pub enum Instruction {
 
 type InstructionBytes = [u8; 2];
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum InstructionError {
     InvalidSize(usize),
     UnsupportedInstruction(u16),
@@ -182,7 +182,7 @@ impl Display for InstructionError {
                 size_bytes
             ),
             InstructionError::UnsupportedInstruction(instruction) => {
-                write!(f, "unsupported instruction {:#06X}", instruction,)
+                write!(f, "unsupported instruction {:#06X}", instruction, )
             }
         }
     }
@@ -589,6 +589,18 @@ mod tests {
 
             assert_eq!(*expected, actual);
         }
+    }
+
+    #[test]
+    fn test_invalid_instructions() {
+        let short = Instruction::from_bytes(&[0xF1]);
+        assert_eq!(Err(InstructionError::InvalidSize(1)), short);
+
+        let long = Instruction::from_bytes(&[0xF1, 0x30, 0x12]);
+        assert_eq!(Err(InstructionError::InvalidSize(3)), long);
+
+        let unsupported = Instruction::from_bytes(&[0xF1, 0x31]);
+        assert_eq!(Err(InstructionError::UnsupportedInstruction(0xF131)), unsupported);
     }
 
     #[test]

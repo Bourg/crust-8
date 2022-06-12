@@ -67,12 +67,11 @@ where
         let instruction_bytes = self.ram.get_instruction(self.registers.pc);
         let instruction = Instruction::from_bytes(instruction_bytes)?;
 
-        // TODO better place to apply clock speed?
-        // TODO account for the actual amount of time the instruction took?
         if self.timer.should_tick() {
             self.registers.tick_timers();
         }
 
+        // TODO use the same functionality as the delay timers to apply real clock speed accounting for execution time
         if let settings::ClockSpeed::Limited { instruction_time } = self.settings.clock_speed {
             thread::sleep(instruction_time);
         }
@@ -864,7 +863,6 @@ mod tests {
     fn test_read_from_memory() {
         let start_memory = 0xEE0;
 
-        // TODO need tests for NoAdvance mode
         let mut machine = Machine::new_headless();
         machine.settings = machine
             .settings
@@ -1021,6 +1019,7 @@ mod tests {
 
     // TODO split the pub tests into integration test files
     // TODO missing tests:
+    // - NoAdvance setting
     // - graphics integration test
     // - Return instruction
     // - All Skip instructions

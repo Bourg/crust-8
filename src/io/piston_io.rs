@@ -182,7 +182,6 @@ impl MapKey for piston::input::Button {
     }
 }
 
-// TODO move
 impl MapKey for PistonKey {
     fn map_key(&self) -> Option<Chip8Key> {
         match self {

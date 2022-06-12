@@ -7,13 +7,11 @@ pub struct Registers {
     pub v: [u8; 16],
     pub i: memory::Address,
     pub pc: memory::Address,
-    pub sp: u8,
+
     pub dt: u8,
     pub st: u8,
 
-    // TODO not sure if registers is the best place for this
-    // It's related to the PC register, but also memory
-    // Maybe memory + registers should be combined?
+    pub sp: u8,
     pub stack: [memory::Address; STACK_SIZE as usize],
 }
 

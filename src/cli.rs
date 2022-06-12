@@ -3,7 +3,11 @@ use clap::{ArgEnum, Parser};
 use std::fs;
 
 #[derive(Debug, Parser)]
-#[clap(author, version, about)]
+#[clap(
+    author = "Austin Bourgerie (austin@bourg.me)",
+    about = "A Chip8 emulator written entirely in Rust",
+    version
+)]
 pub struct Cli {
     /// Path to a ROM to load
     #[clap(parse(try_from_str = open_file))]

@@ -1,3 +1,5 @@
+use rand::Rng;
+
 pub trait RandomSource {
     fn gen(&mut self) -> u8;
 }
@@ -25,12 +27,11 @@ impl RandomSource for FixedRandomSource {
     }
 }
 
-impl<T> RandomSource for T
-where
-    T: rand::Rng,
-{
+pub struct ThreadRandomSource;
+
+impl RandomSource for ThreadRandomSource {
     fn gen(&mut self) -> u8 {
-        rand::Rng::gen(self)
+        rand::thread_rng().gen()
     }
 }
 

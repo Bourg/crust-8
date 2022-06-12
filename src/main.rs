@@ -1,11 +1,11 @@
+use clap::Parser;
 use crust_8::io::piston_io;
-use crust_8::{cli, machine, settings, timer};
+use crust_8::{cli, machine, random, settings, timer};
+use std::error;
 use std::sync::mpsc;
 use std::{thread, time};
 
-use clap::Parser;
-
-fn main() {
+fn main() -> Result<(), Box<dyn error::Error>> {
     let cli = cli::Cli::parse();
 
     // Create two handles to the graphics implementation
@@ -16,19 +16,17 @@ fn main() {
         instruction_time: time::Duration::from_millis(2),
     });
 
+    let mut machine = machine::Machine::new(
+        machine_io,
+        random::ThreadRandomSource,
+        timer::WallTimer::new(),
+        settings,
+    );
+
+    machine.load_program(cli.rom)?;
+
     let (tx, rx) = mpsc::channel();
-
     thread::spawn(move || {
-        let mut machine = machine::Machine::new(
-            machine_io,
-            rand::thread_rng(),
-            timer::WallTimer::new(),
-            settings,
-        );
-
-        // TODO better error handling
-        machine.load_program(cli.rom).unwrap();
-
         // Wait to get the ready message from the UI thread
         rx.recv().unwrap();
 
@@ -41,4 +39,6 @@ fn main() {
 
     // Open the window and post a ready message
     window_io.open_window(|| tx.send(()).unwrap());
+
+    Ok(())
 }

@@ -24,8 +24,7 @@ fn main() {
         let mut machine = machine::Machine::new(
             machine_io,
             rand::thread_rng(),
-            // TODO use a wall timer in real-time since 500Hz/60Hz is not an integer
-            timer::InstructionTimer::new(),
+            timer::WallTimer::new(),
             settings,
         );
 

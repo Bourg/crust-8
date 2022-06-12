@@ -4,7 +4,6 @@ use crate::io::input::MapKey;
 use crate::random;
 use crate::{memory, settings};
 use crate::{register, timer};
-use std::error::Error;
 use std::{error, thread};
 
 // Chip8 runs instructions at 500Hz
@@ -106,8 +105,7 @@ where
         }
     }
 
-    // TODO figure out how to avoid the dyn errors
-    fn step(&mut self, instruction: &Instruction) -> Result<(), Box<dyn Error>> {
+    fn step(&mut self, instruction: &Instruction) {
         match instruction {
             Instruction::ClearScreen => {
                 self.graphics.clear();
@@ -254,7 +252,7 @@ where
                 let sprite_address = self.registers.i;
                 let sprite = self.ram.get_sprite_at_address(sprite_address, *bytes);
 
-                let flipped = self.graphics.draw(x, y, sprite)?;
+                let flipped = self.graphics.draw(x, y, sprite);
 
                 self.registers.set_flag(if flipped { 1 } else { 0 });
                 self.registers.advance_pc();
@@ -263,7 +261,7 @@ where
             Instruction::SkipPressedX { register } => {
                 let value = self.registers.get_register(*register);
                 if let Some(key) = value.map_key() {
-                    if self.graphics.key_pressed(key)? {
+                    if self.graphics.key_pressed(key) {
                         self.registers.advance_pc();
                     }
                 }
@@ -273,7 +271,7 @@ where
             Instruction::SkipNotPressedX { register } => {
                 let value = self.registers.get_register(*register);
                 if let Some(key) = value.map_key() {
-                    if !self.graphics.key_pressed(key)? {
+                    if !self.graphics.key_pressed(key) {
                         self.registers.advance_pc();
                     }
                 }
@@ -287,7 +285,7 @@ where
             }
             // TODO untested
             Instruction::StorePressX { register } => {
-                let key = self.graphics.block_for_key()?;
+                let key = self.graphics.block_for_key();
                 self.registers.set_register(*register, key as u8);
 
                 self.registers.advance_pc();
@@ -359,8 +357,6 @@ where
                 self.registers.advance_pc();
             }
         };
-
-        Ok(())
     }
 
     fn op<T>(&mut self, target: &u8, source: &u8, op: T)

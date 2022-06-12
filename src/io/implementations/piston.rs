@@ -1,4 +1,4 @@
-use crate::io::chip8_io::{Chip8IO, Chip8IOResult};
+use crate::io::chip8_io::Chip8IO;
 use crate::io::graphics::{GraphicsBuffer, SpriteData};
 use crate::io::input::{Key as Chip8Key, Keypad, MapKey};
 use glutin_window::OpenGL;
@@ -32,12 +32,12 @@ impl PistonIOInternal {
         }
     }
 
-    fn handle_button_event(&mut self, args: ButtonArgs) -> Chip8IOResult {
+    fn handle_button_event(&mut self, args: ButtonArgs) {
         match (args.state, args.button.map_key()) {
             (ButtonState::Press, Some(key)) => {
                 self.keypad.press(key);
                 if let Some(channel) = &mut self.interrupt_channel {
-                    channel.send(key)?;
+                    channel.send(key).unwrap();
                     self.interrupt_channel = None;
                 }
             }
@@ -46,23 +46,19 @@ impl PistonIOInternal {
             }
             _ => {}
         }
-
-        Ok(())
     }
 
-    pub fn handle_event(&mut self, e: Event, gl: &mut GlGraphics) -> Chip8IOResult {
+    pub fn handle_event(&mut self, e: Event, gl: &mut GlGraphics) {
         if let Some(button_args) = e.button_args() {
-            self.handle_button_event(button_args)?;
+            self.handle_button_event(button_args);
         }
 
         if let Some(args) = e.render_args() {
-            self.render(gl, &args)?;
+            self.render(gl, &args);
         }
-
-        Ok(())
     }
 
-    fn render(&self, gl: &mut GlGraphics, args: &RenderArgs) -> Chip8IOResult {
+    fn render(&self, gl: &mut GlGraphics, args: &RenderArgs) {
         gl.draw(args.viewport(), |c, gl| {
             graphics::clear([1.0, 1.0, 1.0, 1.0], gl);
 
@@ -85,37 +81,31 @@ impl PistonIOInternal {
                 }
             }
         });
-
-        Ok(())
     }
 }
 
 impl Chip8IO for PistonIO {
-    fn clear(&mut self) -> Chip8IOResult {
-        self.internal.lock()?.graphics_buffer.clear();
-
-        Ok(())
+    fn clear(&mut self) {
+        self.internal.lock().unwrap().graphics_buffer.clear();
     }
 
-    fn draw(&mut self, x: u8, y: u8, sprite: &SpriteData) -> Chip8IOResult<bool> {
-        let result = self.internal.lock()?.graphics_buffer.draw(x, y, sprite);
-
-        Ok(result)
+    fn draw(&mut self, x: u8, y: u8, sprite: &SpriteData) -> bool {
+        self.internal
+            .lock()
+            .unwrap()
+            .graphics_buffer
+            .draw(x, y, sprite)
     }
 
-    fn key_pressed(&mut self, key: Chip8Key) -> Chip8IOResult<bool> {
-        let result = self.internal.lock()?.keypad.is_pressed(&key);
-
-        Ok(result)
+    fn key_pressed(&mut self, key: Chip8Key) -> bool {
+        self.internal.lock().unwrap().keypad.is_pressed(&key)
     }
 
-    fn block_for_key(&mut self) -> Chip8IOResult<Chip8Key> {
+    fn block_for_key(&mut self) -> Chip8Key {
         let (tx, rx) = mpsc::channel();
 
-        self.internal.lock()?.interrupt_channel = Some(tx);
-        let result = rx.recv()?;
-
-        Ok(result)
+        self.internal.lock().unwrap().interrupt_channel = Some(tx);
+        rx.recv().unwrap()
     }
 }
 
@@ -128,7 +118,7 @@ impl PistonIO {
         }
     }
 
-    pub fn open_window(&self) -> Chip8IOResult {
+    pub fn open_window(self) {
         let opengl = OpenGL::V4_5;
 
         let mut window: glutin_window::GlutinWindow =
@@ -146,11 +136,9 @@ impl PistonIO {
         while let Some(e) = events.next(&mut window) {
             // TODO can probably be smarter about not duplicating these checks
             // TODO look at the press and release implementations to see the underlying
-            let mut internal = self.internal.lock()?;
+            let mut internal = self.internal.lock().unwrap();
             internal.handle_event(e, &mut gl);
         }
-
-        Ok(())
     }
 }
 

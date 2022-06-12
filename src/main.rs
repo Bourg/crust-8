@@ -1,4 +1,4 @@
-use crust_8::io::chip8_io;
+use crust_8::io::implementations::piston::PistonIO;
 use crust_8::settings::ClockSpeed;
 use crust_8::{machine, settings, timer};
 use std::{env, fs, thread, time};
@@ -10,8 +10,8 @@ fn main() {
     let file = fs::File::open(filename).unwrap();
 
     // Create two handles to the graphics implementation
-    let window_graphics = chip8_io::PistonGraphics::new();
-    let machine_graphics = window_graphics.clone();
+    let window_io = PistonIO::new();
+    let machine_io = window_io.clone();
 
     let settings = settings::Settings::default()
         .with_clock_speed(ClockSpeed::Limited {
@@ -23,7 +23,7 @@ fn main() {
 
     thread::spawn(move || {
         let mut machine = machine::Machine::new(
-            machine_graphics,
+            machine_io,
             rand::thread_rng(),
             // TODO use a wall timer in real-time since 500Hz/60Hz is not an integer
             timer::InstructionTimer::new(),
@@ -40,5 +40,5 @@ fn main() {
         println!("{}", completion_message);
     });
 
-    window_graphics.open_window().unwrap();
+    window_io.open_window();
 }
